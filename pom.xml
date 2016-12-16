@@ -63,6 +63,15 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- https://mvnrepository.com/artifact/org.jfree/jfreechart -->
+    <dependency>
+      <groupId>org.jfree</groupId>
+      <artifactId>jfreechart</artifactId>
+      <version>1.0.14</version>
+      <scope>test</scope>
+    </dependency>
+
+
   </dependencies>
 
   <build>

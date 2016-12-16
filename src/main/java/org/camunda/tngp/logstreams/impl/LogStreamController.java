@@ -202,7 +202,6 @@ public class LogStreamController implements Agent
         public int doWork(Context context)
         {
             final int bytesAvailable = writeBufferSubscription.peekBlock(blockPeek, maxAppendBlockSize, true);
-
             if (bytesAvailable > 0)
             {
                 final ByteBuffer nioBuffer = blockPeek.getRawBuffer();
@@ -215,16 +214,17 @@ public class LogStreamController implements Agent
 
                 if (address >= 0)
                 {
-                    try
-                    {
-                        logStorage.flush();
-                    }
-                    catch (Exception e)
-                    {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
+//                    try
+//                    {
+//                        logStorage.flush();
+//                    }
+//                    catch (Exception e)
+//                    {
+//                        // TODO Auto-generated catch block
+//                        e.printStackTrace();
+//                    }
                     onBlockWritten(context, postion, address, blockPeek.getBlockLength());
+
                     blockPeek.markCompleted();
 
                     if (snapshotPolicy.apply(postion))
