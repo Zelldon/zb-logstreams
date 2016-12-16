@@ -215,6 +215,15 @@ public class LogStreamController implements Agent
 
                 if (address >= 0)
                 {
+                    try
+                    {
+                        logStorage.flush();
+                    }
+                    catch (Exception e)
+                    {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
                     onBlockWritten(context, postion, address, blockPeek.getBlockLength());
                     blockPeek.markCompleted();
 

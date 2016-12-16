@@ -22,9 +22,11 @@ public class WriteThroughputTest
 
         final DedicatedAgentRunnerService agentRunnerService = new DedicatedAgentRunnerService(new SimpleAgentRunnerFactory());
         final LogStream stream = LogStreams.createFsLogStream("test-stream", 0)
-            .logRootPath("/tmp/benchmark-logs")
+            .logRootPath("/home/meyerd/tmp/benchmark-logs")
 //            .deleteOnClose(true)
             .agentRunnerService(agentRunnerService)
+            .writeBufferSize(1024 * 1024 * 1024)
+            .maxAppendBlockSize(8 * 1024 * 1024)
             .build();
 
         final LogStreamWriter writer = new LogStreamWriter(stream);
@@ -46,11 +48,11 @@ public class WriteThroughputTest
         try (LogStream openStream = stream)
         {
 
-            final long before = System.nanoTime();
-
             long lastEventPosition = -1;
 
-            for (int i = 0; i < 25_000_000; )
+            final long endTime = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+            while (System.nanoTime() < endTime)
             {
                 lastEventPosition = writer.positionAsKey()
                         .value(evntBuffer)
@@ -59,7 +61,6 @@ public class WriteThroughputTest
                 if (lastEventPosition > 0)
                 {
                     rateReporter.increment();
-                    ++i;
                 }
             }
 
@@ -67,11 +68,6 @@ public class WriteThroughputTest
             {
                 // spin
             }
-
-            final long after = System.nanoTime();
-            final long duration = after - before;
-
-            System.out.println(TimeUnit.NANOSECONDS.toMillis(duration));
 
         }
 
