@@ -2,10 +2,12 @@ package org.camunda.tngp.logstreams.log;
 
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
+import org.camunda.tngp.logstreams.impl.CompleteEventsInBlockProcessor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
 
 import static org.camunda.tngp.dispatcher.impl.log.DataFrameDescriptor.*;
 import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.positionOffset;
@@ -27,6 +29,7 @@ public class LogTestUtil
         return (InvocationOnMock invocationOnMock) ->
         {
             final ByteBuffer argBuffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            final CompleteEventsInBlockProcessor processor = (CompleteEventsInBlockProcessor) invocationOnMock.getArguments()[2];
             final UnsafeBuffer unsafeBuffer = new UnsafeBuffer(0, 0);
             unsafeBuffer.wrap(argBuffer);
 
@@ -42,6 +45,28 @@ public class LogTestUtil
 
             argBuffer.position(blockSize);
             return nextAddress;
+        };
+    }
+
+    public static Answer<Object> readEvent(Supplier<Long> positionSupplier)
+    {
+        return (InvocationOnMock invocationOnMock) ->
+        {
+            final ByteBuffer argBuffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            final long address = (Long) invocationOnMock.getArguments()[1];
+            final CompleteEventsInBlockProcessor processor = (CompleteEventsInBlockProcessor) invocationOnMock.getArguments()[2];
+
+            final UnsafeBuffer unsafeBuffer = new UnsafeBuffer(0, 0);
+            unsafeBuffer.wrap(argBuffer);
+
+            // set position
+            // first event
+            unsafeBuffer.putLong(lengthOffset(0), 911);
+            unsafeBuffer.putLong(positionOffset(messageOffset(0)), positionSupplier.get());
+
+
+            argBuffer.position(alignedLength(911));
+            return address + processor.process(argBuffer, alignedLength(911));
         };
     }
 }
