@@ -18,14 +18,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import org.agrona.concurrent.Agent;
 import org.camunda.tngp.logstreams.log.*;
 import org.camunda.tngp.logstreams.spi.*;
 import org.camunda.tngp.util.DeferredCommandContext;
 import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.Task;
 import org.camunda.tngp.util.state.*;
 
-public class StreamProcessorController implements Agent
+public class StreamProcessorController implements Task
 {
     protected static final int TRANSITION_DEFAULT = 0;
     protected static final int TRANSITION_OPEN = 1;

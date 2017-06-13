@@ -1,30 +1,27 @@
 package org.camunda.tngp.logstreams.impl;
 
-import org.agrona.concurrent.Agent;
-import org.agrona.concurrent.UnsafeBuffer;
-import org.agrona.concurrent.status.Position;
-import org.camunda.tngp.logstreams.impl.log.index.LogBlockIndex;
-import org.camunda.tngp.logstreams.spi.*;
-import org.camunda.tngp.util.agent.AgentRunnerService;
-import org.camunda.tngp.util.state.State;
-import org.camunda.tngp.util.state.StateMachine;
-import org.camunda.tngp.util.state.TransitionState;
-import org.camunda.tngp.util.state.WaitState;
-
-import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
-
 import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.getPosition;
 import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.*;
 import static org.camunda.tngp.logstreams.log.LogStreamUtil.INVALID_ADDRESS;
 import static org.camunda.tngp.logstreams.spi.LogStorage.OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
 import static org.camunda.tngp.logstreams.spi.LogStorage.OP_RESULT_INVALID_ADDR;
 
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+
+import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.status.Position;
+import org.camunda.tngp.logstreams.impl.log.index.LogBlockIndex;
+import org.camunda.tngp.logstreams.spi.*;
+import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.Task;
+import org.camunda.tngp.util.state.*;
+
 /**
  * Represents the log block index controller, which creates the log block index
  * for the given log storage.
  */
-public class LogBlockIndexController implements Agent
+public class LogBlockIndexController implements Task
 {
     /**
      * The default deviation is 10%. That means for blocks which are filled 90%
@@ -95,7 +92,7 @@ public class LogBlockIndexController implements Agent
         this.commitPosition = commitPosition;
 
         this.deviation = logStreamBuilder.getDeviation();
-        this.indexBlockSize = (int) ((float) logStreamBuilder.getIndexBlockSize() * (1f - deviation));
+        this.indexBlockSize = (int) (logStreamBuilder.getIndexBlockSize() * (1f - deviation));
         this.snapshotStorage = logStreamBuilder.getSnapshotStorage();
         this.snapshotPolicy = logStreamBuilder.getSnapshotPolicy();
         this.bufferSize = logStreamBuilder.getReadBlockSize();

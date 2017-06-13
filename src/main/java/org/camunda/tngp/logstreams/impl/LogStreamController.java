@@ -1,28 +1,24 @@
 package org.camunda.tngp.logstreams.impl;
 
-import org.agrona.MutableDirectBuffer;
-import org.agrona.concurrent.Agent;
-import org.camunda.tngp.dispatcher.BlockPeek;
-import org.camunda.tngp.dispatcher.Dispatcher;
-import org.camunda.tngp.dispatcher.Subscription;
-import org.camunda.tngp.logstreams.log.LogStreamFailureListener;
-import org.camunda.tngp.logstreams.spi.LogStorage;
-import org.camunda.tngp.util.agent.AgentRunnerService;
-import org.camunda.tngp.util.state.State;
-import org.camunda.tngp.util.state.StateMachine;
-import org.camunda.tngp.util.state.TransitionState;
-import org.camunda.tngp.util.state.WaitState;
+import static org.camunda.tngp.dispatcher.impl.log.DataFrameDescriptor.messageOffset;
+import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.positionOffset;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.*;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import static org.camunda.tngp.dispatcher.impl.log.DataFrameDescriptor.messageOffset;
-import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.positionOffset;
-import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.*;
+import org.agrona.MutableDirectBuffer;
+import org.agrona.concurrent.Agent;
+import org.camunda.tngp.dispatcher.*;
+import org.camunda.tngp.logstreams.log.LogStreamFailureListener;
+import org.camunda.tngp.logstreams.spi.LogStorage;
+import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.Task;
+import org.camunda.tngp.util.state.*;
 
-public class LogStreamController implements Agent
+public class LogStreamController implements Task
 {
     protected static final int TRANSITION_FAIL = 3;
     protected static final int TRANSITION_RECOVER = 5;
