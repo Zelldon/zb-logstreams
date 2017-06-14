@@ -21,7 +21,7 @@ import org.camunda.tngp.logstreams.spi.SnapshotPolicy;
 import org.camunda.tngp.logstreams.spi.SnapshotPositionProvider;
 import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.util.DeferredCommandContext;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 
 public class StreamProcessorBuilder
 {
@@ -33,7 +33,7 @@ public class StreamProcessorBuilder
     protected LogStream sourceStream;
     protected LogStream targetStream;
 
-    protected TaskSchedulerRunnable taskScheduler;
+    protected TaskScheduler taskScheduler;
 
     protected SnapshotPolicy snapshotPolicy;
     protected SnapshotStorage snapshotStorage;
@@ -71,7 +71,7 @@ public class StreamProcessorBuilder
         return this;
     }
 
-    public StreamProcessorBuilder taskScheduler(TaskSchedulerRunnable taskScheduler)
+    public StreamProcessorBuilder taskScheduler(TaskScheduler taskScheduler)
     {
         this.taskScheduler = taskScheduler;
         return this;

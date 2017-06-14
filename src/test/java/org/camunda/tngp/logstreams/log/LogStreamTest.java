@@ -17,7 +17,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +36,7 @@ import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotWriter;
 import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -60,7 +59,7 @@ public class LogStreamTest
     LogStreamImpl.LogStreamBuilder mockLogStreamBuilder;
 
     @Mock
-    private TaskSchedulerRunnable mockTaskScheduler;
+    private TaskScheduler mockTaskScheduler;
     @Mock
     private ScheduledTask mockScheduledController;
     @Mock
@@ -331,7 +330,6 @@ public class LogStreamTest
         assertNotNull(logStream.getWriteBuffer());
 
         // verify usage of agent runner service, only one times with mock because after re-opening new agent is used
-        verify(mockTaskScheduler, times(2)).submitTask(any(LogStreamController.class));
         verify(mockTaskScheduler).submitTask(mockWriteBufferConductor);
         verify(mockTaskScheduler).submitTask(logStreamController);
     }
@@ -356,36 +354,36 @@ public class LogStreamTest
             .sourceEventPosition(4L)
             .producerId(5)
             .value(getBytes("event")));
-        final TaskSchedulerRunnable secondTaskScheduler = mock(TaskSchedulerRunnable.class);
+        final TaskScheduler secondTaskScheduler = mock(TaskScheduler.class);
 
         // given open log stream with stopped log stream controller
         logStream.openAsync();
         logStream.getLogBlockIndexController().doWork();
-        LogStreamController logStreamController = logStream.getLogStreamController();
-        logStreamController.doWork();
+        final LogStreamController logStreamController1 = logStream.getLogStreamController();
+        logStreamController1.doWork();
 
         logStream.closeLogStreamController();
-        logStreamController.doWork(); // closing
-        logStreamController.doWork(); // close
+        logStreamController1.doWork(); // closing
+        logStreamController1.doWork(); // close
 
         // when log streaming is started
         logStream.openLogStreamController(secondTaskScheduler);
-        logStreamController = logStream.getLogStreamController();
+        final LogStreamController logStreamController2 = logStream.getLogStreamController();
 
         // then
         // log stream controller has been set
-        assertNotNull(logStreamController);
-        logStreamController.doWork();
+        assertNotNull(logStreamController2);
+        logStreamController2.doWork();
         // is running
-        assertTrue(logStreamController.isRunning());
+        assertTrue(logStreamController2.isRunning());
 
         // dispatcher is initialized
         assertNotNull(logStream.getWriteBuffer());
 
         // verify usage of agent runner service
         verify(mockTaskScheduler).submitTask(mockWriteBufferConductor);
-        verify(secondTaskScheduler).submitTask(any(LogStreamController.class));
-        verify(mockTaskScheduler).submitTask(logStreamController);
+        verify(mockTaskScheduler).submitTask(logStreamController1);
+        verify(secondTaskScheduler).submitTask(logStreamController2);
     }
 
     @Test

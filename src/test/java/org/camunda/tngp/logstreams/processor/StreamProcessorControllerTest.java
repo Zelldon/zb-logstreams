@@ -28,7 +28,7 @@ import org.camunda.tngp.logstreams.log.*;
 import org.camunda.tngp.logstreams.spi.*;
 import org.camunda.tngp.util.DeferredCommandContext;
 import org.camunda.tngp.util.newagent.ScheduledTask;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -54,7 +54,7 @@ public class StreamProcessorControllerTest
     private EventProcessor mockEventProcessor;
 
     @Mock
-    private TaskSchedulerRunnable mockTaskScheduler;
+    private TaskScheduler mockTaskScheduler;
 
     @Mock
     private ScheduledTask mockScheduledTask;

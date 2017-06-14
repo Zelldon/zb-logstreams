@@ -1,5 +1,14 @@
 package org.camunda.tngp.logstreams.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.waitUntilWrittenKey;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.writeLogEvents;
+import static org.camunda.tngp.util.buffer.BufferUtil.wrapString;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.agrona.DirectBuffer;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.fs.FsLogStreamBuilder;
@@ -7,23 +16,12 @@ import org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil;
 import org.camunda.tngp.logstreams.log.BufferedLogStreamReader;
 import org.camunda.tngp.logstreams.log.LogStream;
 import org.camunda.tngp.logstreams.log.LogStreamReader;
-import org.camunda.tngp.util.agent.AgentRunnerService;
-import org.camunda.tngp.util.agent.SharedAgentRunnerService;
-import org.camunda.tngp.util.agent.SimpleAgentRunnerFactory;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.waitUntilWrittenKey;
-import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.writeLogEvents;
-import static org.camunda.tngp.util.buffer.BufferUtil.wrapString;
 
 public class LogRecoveryTest
 {
@@ -44,7 +42,7 @@ public class LogRecoveryTest
 
     private String logPath;
 
-    private AgentRunnerService agentRunnerService;
+    private TaskScheduler taskScheduler;
 
     private FsLogStreamBuilder logStreamBuilder;
 
@@ -53,7 +51,7 @@ public class LogRecoveryTest
     {
         logPath = temFolder.getRoot().getAbsolutePath();
 
-        agentRunnerService = new SharedAgentRunnerService(new SimpleAgentRunnerFactory(), "test");
+        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
 
         logStreamBuilder = getLogStreamBuilder();
     }
@@ -67,14 +65,13 @@ public class LogRecoveryTest
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
             .snapshotPolicy(pos -> false)
-            .taskScheduler(agentRunnerService)
-            .writeBufferAgentRunnerService(agentRunnerService);
+            .taskScheduler(taskScheduler);
     }
 
     @After
     public void destroy() throws Exception
     {
-        agentRunnerService.close();
+        taskScheduler.close();
     }
 
     @Test
@@ -120,7 +117,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .taskScheduler(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();
@@ -205,7 +202,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .taskScheduler(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();
@@ -244,7 +241,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .taskScheduler(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();

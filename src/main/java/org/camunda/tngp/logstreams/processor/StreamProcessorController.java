@@ -23,7 +23,7 @@ import org.camunda.tngp.logstreams.spi.*;
 import org.camunda.tngp.util.DeferredCommandContext;
 import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.camunda.tngp.util.state.*;
 
 public class StreamProcessorController implements Task
@@ -94,7 +94,7 @@ public class StreamProcessorController implements Task
 
     protected final StreamProcessorErrorHandler streamProcessorErrorHandler;
 
-    protected final TaskSchedulerRunnable taskScheduler;
+    protected final TaskScheduler taskScheduler;
     protected ScheduledTask scheduledController;
     protected final AtomicBoolean isRunning = new AtomicBoolean(false);
 

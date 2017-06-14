@@ -22,14 +22,8 @@ import static org.camunda.tngp.util.buffer.BufferUtil.wrapString;
 import java.io.FileNotFoundException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.agrona.ErrorHandler;
-import org.agrona.concurrent.BackoffIdleStrategy;
-import org.agrona.concurrent.IdleStrategy;
-import org.agrona.concurrent.UnsafeBuffer;
-import org.agrona.concurrent.status.CountersManager;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.impl.LogStreamController;
 import org.camunda.tngp.logstreams.integration.util.ControllableFsLogStorage;
@@ -43,8 +37,7 @@ import org.camunda.tngp.logstreams.snapshot.SerializableWrapper;
 import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotSupport;
 import org.camunda.tngp.test.util.TestUtil;
-import org.camunda.tngp.util.newagent.TaskExecutor;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -59,7 +52,7 @@ public class StreamProcessorIntegrationTest
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
-    private TaskSchedulerRunnable taskScheduler;
+    private TaskScheduler taskScheduler;
 
     private LogStream sourceLogStream;
     private LogStream targetLogStream;
@@ -72,18 +65,7 @@ public class StreamProcessorIntegrationTest
     @Before
     public void setup()
     {
-        final IdleStrategy defaultIdleStrategy = new BackoffIdleStrategy(100, 10, TimeUnit.MICROSECONDS.toNanos(1), TimeUnit.MILLISECONDS.toNanos(100));
-        final ErrorHandler defaultErrorHandler = (e) -> e.printStackTrace();
-
-        final CountersManager countersManager = new CountersManager(new UnsafeBuffer(new byte[8192]), new UnsafeBuffer(new byte[2048]));
-
-        final TaskExecutor taskExecutor = new TaskExecutor(10, defaultIdleStrategy, defaultErrorHandler);
-
-        taskScheduler = new TaskSchedulerRunnable(new TaskExecutor[]{ taskExecutor }, countersManager);
-
-        TaskExecutor.runOnThread(taskExecutor);
-
-        new Thread(taskScheduler).start();
+        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
 
         resourceCounter = new SerializableWrapper<>(new Counter());
 
@@ -115,7 +97,7 @@ public class StreamProcessorIntegrationTest
         sourceLogStream.close();
         targetLogStream.close();
 
-        taskScheduler.exit();
+        taskScheduler.close();
     }
 
     @Test

@@ -10,7 +10,7 @@ import org.camunda.tngp.logstreams.impl.LogBlockIndexController;
 import org.camunda.tngp.logstreams.impl.LogStreamController;
 import org.camunda.tngp.logstreams.impl.log.index.LogBlockIndex;
 import org.camunda.tngp.logstreams.spi.LogStorage;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 
 
 /**
@@ -182,7 +182,7 @@ public interface LogStream extends AutoCloseable
      * @param taskScheduler the agent runner service which is used for the scheduling
      * @return returns the future for the log stream controller opening
      */
-    CompletableFuture<Void> openLogStreamController(TaskSchedulerRunnable taskScheduler);
+    CompletableFuture<Void> openLogStreamController(TaskScheduler taskScheduler);
 
     /**
      * Starts the log streaming from the write buffer into log storage. The write buffer
@@ -195,7 +195,7 @@ public interface LogStream extends AutoCloseable
      * @param maxAppendBlockSize the maximum block size which should been appended
      * @return returns the future for the log stream controller opening
      */
-    CompletableFuture<Void> openLogStreamController(TaskSchedulerRunnable taskScheduler, int maxAppendBlockSize);
+    CompletableFuture<Void> openLogStreamController(TaskScheduler taskScheduler, int maxAppendBlockSize);
 
     /**
      * Truncates the log stream from the given position to the end of the stream.

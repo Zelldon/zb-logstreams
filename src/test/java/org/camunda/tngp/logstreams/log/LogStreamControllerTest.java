@@ -42,7 +42,7 @@ import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotWriter;
 import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -57,7 +57,7 @@ public class LogStreamControllerTest
     private LogStreamController controller;
 
     @Mock
-    private TaskSchedulerRunnable mockTaskScheduler;
+    private TaskScheduler mockTaskScheduler;
     @Mock
     private ScheduledTask mockScheduledController;
     @Mock

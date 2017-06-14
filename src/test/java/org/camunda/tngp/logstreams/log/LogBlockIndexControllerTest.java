@@ -18,7 +18,7 @@ import org.camunda.tngp.logstreams.fs.FsLogStreamBuilder;
 import org.camunda.tngp.logstreams.impl.LogBlockIndexController;
 import org.camunda.tngp.logstreams.impl.log.index.LogBlockIndex;
 import org.camunda.tngp.logstreams.spi.*;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -35,7 +35,7 @@ public class LogBlockIndexControllerTest
     private LogBlockIndexController blockIdxController;
 
     @Mock
-    private TaskSchedulerRunnable mockTaskScheduler;
+    private TaskScheduler mockTaskScheduler;
 
     @Mock
     private LogBlockIndex mockBlockIndex;

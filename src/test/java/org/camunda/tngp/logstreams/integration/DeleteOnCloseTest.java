@@ -9,14 +9,8 @@ import java.util.concurrent.ExecutionException;
 import org.agrona.DirectBuffer;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.log.LogStream;
-import org.camunda.tngp.util.agent.AgentRunnerService;
-import org.camunda.tngp.util.agent.SharedAgentRunnerService;
-import org.camunda.tngp.util.agent.SimpleAgentRunnerFactory;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.camunda.tngp.util.newagent.TaskScheduler;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 
@@ -27,18 +21,18 @@ public class DeleteOnCloseTest
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
-    private AgentRunnerService agentRunnerService;
+    private TaskScheduler taskScheduler;
 
     @Before
     public void setup()
     {
-        agentRunnerService = new SharedAgentRunnerService(new SimpleAgentRunnerFactory(), "test");
+        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
     }
 
     @After
     public void destroy() throws Exception
     {
-        agentRunnerService.close();
+        taskScheduler.close();
     }
 
     @Test
@@ -48,8 +42,7 @@ public class DeleteOnCloseTest
 
         final LogStream log = LogStreams.createFsLogStream(TOPIC_NAME, 0)
             .logRootPath(logFolder.getAbsolutePath())
-            .taskScheduler(agentRunnerService)
-            .writeBufferAgentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .build();
 
         log.open();
@@ -70,8 +63,7 @@ public class DeleteOnCloseTest
         final LogStream log = LogStreams.createFsLogStream(TOPIC_NAME, 0)
             .logRootPath(logFolder.getAbsolutePath())
             .deleteOnClose(true)
-            .taskScheduler(agentRunnerService)
-            .writeBufferAgentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .build();
 
         log.open();

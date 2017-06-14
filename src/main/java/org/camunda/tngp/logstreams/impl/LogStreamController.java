@@ -19,7 +19,7 @@ import org.camunda.tngp.logstreams.log.LogStreamFailureListener;
 import org.camunda.tngp.logstreams.spi.LogStorage;
 import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 import org.camunda.tngp.util.state.State;
 import org.camunda.tngp.util.state.StateMachine;
 import org.camunda.tngp.util.state.TransitionState;
@@ -45,7 +45,7 @@ public class LogStreamController implements Task
     //  MANDATORY //////////////////////////////////////////////////
     protected final String name;
     protected final LogStorage logStorage;
-    protected final TaskSchedulerRunnable taskScheduler;
+    protected final TaskScheduler taskScheduler;
     protected ScheduledTask scheduledController;
     protected ScheduledTask scheduledWriteBuffer;
 

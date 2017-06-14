@@ -31,7 +31,7 @@ import org.camunda.tngp.logstreams.snapshot.TimeBasedSnapshotPolicy;
 import org.camunda.tngp.logstreams.spi.LogStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotPolicy;
 import org.camunda.tngp.logstreams.spi.SnapshotStorage;
-import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.newagent.TaskScheduler;
 
 /**
  * Represents the implementation of the LogStream interface.
@@ -53,7 +53,7 @@ public final class LogStreamImpl implements LogStream
 
     protected final LogStorage logStorage;
     protected final LogBlockIndex blockIndex;
-    protected final TaskSchedulerRunnable taskScheduler;
+    protected final TaskScheduler taskScheduler;
 
 
     protected final LogBlockIndexController logBlockIndexController;
@@ -299,13 +299,13 @@ public final class LogStreamImpl implements LogStream
     }
 
     @Override
-    public CompletableFuture<Void> openLogStreamController(TaskSchedulerRunnable taskScheduler)
+    public CompletableFuture<Void> openLogStreamController(TaskScheduler taskScheduler)
     {
         return openLogStreamController(taskScheduler, DEFAULT_MAX_APPEND_BLOCK_SIZE);
     }
 
     @Override
-    public CompletableFuture<Void> openLogStreamController(TaskSchedulerRunnable taskScheduler,
+    public CompletableFuture<Void> openLogStreamController(TaskScheduler taskScheduler,
                                                            int maxAppendBlockSize)
     {
         final LogStreamBuilder logStreamBuilder = new LogStreamBuilder(topicName, partitionId)
@@ -373,7 +373,7 @@ public final class LogStreamImpl implements LogStream
         protected final DirectBuffer topicName;
         protected final int partitionId;
         protected final String logName;
-        protected TaskSchedulerRunnable taskScheduler;
+        protected TaskScheduler taskScheduler;
         protected LogStorage logStorage;
         protected LogBlockIndex logBlockIndex;
 
@@ -452,7 +452,7 @@ public final class LogStreamImpl implements LogStream
             return self();
         }
 
-        public T taskScheduler(TaskSchedulerRunnable taskScheduler)
+        public T taskScheduler(TaskScheduler taskScheduler)
         {
             this.taskScheduler = taskScheduler;
             return self();
@@ -536,7 +536,7 @@ public final class LogStreamImpl implements LogStream
             return logName;
         }
 
-        public TaskSchedulerRunnable getTaskScheduler()
+        public TaskScheduler getTaskScheduler()
         {
             if (taskScheduler == null)
             {
