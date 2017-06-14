@@ -65,7 +65,7 @@ public class StreamProcessorIntegrationTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
+        taskScheduler = TaskScheduler.createDefaultExecutor();
 
         resourceCounter = new SerializableWrapper<>(new Counter());
 

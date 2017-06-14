@@ -26,7 +26,7 @@ public class DeleteOnCloseTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
+        taskScheduler = TaskScheduler.createDefaultExecutor();
     }
 
     @After

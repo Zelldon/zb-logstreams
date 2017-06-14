@@ -32,7 +32,7 @@ public class LogIntegrationTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
+        taskScheduler = TaskScheduler.createDefaultExecutor();
 
         final String logPath = tempFolder.getRoot().getAbsolutePath();
 

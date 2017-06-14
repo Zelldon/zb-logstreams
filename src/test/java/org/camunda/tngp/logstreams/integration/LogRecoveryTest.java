@@ -51,7 +51,7 @@ public class LogRecoveryTest
     {
         logPath = temFolder.getRoot().getAbsolutePath();
 
-        taskScheduler = TaskScheduler.createSingleThreadedScheduler();
+        taskScheduler = TaskScheduler.createDefaultExecutor();
 
         logStreamBuilder = getLogStreamBuilder();
     }
