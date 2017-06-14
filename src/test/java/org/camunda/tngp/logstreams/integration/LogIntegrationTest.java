@@ -46,7 +46,7 @@ public class LogIntegrationTest
                 .logRootPath(logPath)
                 .deleteOnClose(true)
                 .logSegmentSize(1024 * 1024 * 16)
-                .agentRunnerService(agentRunnerService)
+                .taskScheduler(agentRunnerService)
                 .writeBufferAgentRunnerService(agentRunnerService)
                 .build();
 

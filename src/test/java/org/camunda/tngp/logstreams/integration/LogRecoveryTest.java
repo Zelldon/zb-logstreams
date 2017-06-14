@@ -67,7 +67,7 @@ public class LogRecoveryTest
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
             .snapshotPolicy(pos -> false)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(agentRunnerService)
             .writeBufferAgentRunnerService(agentRunnerService);
     }
 
@@ -120,7 +120,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(agentRunnerService)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();
@@ -205,7 +205,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(agentRunnerService)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();
@@ -244,7 +244,7 @@ public class LogRecoveryTest
             .logSegmentSize(LOG_SEGMENT_SIZE)
             .indexBlockSize(INDEX_BLOCK_SIZE)
             .readBlockSize(INDEX_BLOCK_SIZE)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(agentRunnerService)
             .logStreamControllerDisabled(true)
             .build();
         newLog.open();

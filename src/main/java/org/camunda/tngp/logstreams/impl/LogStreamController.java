@@ -2,7 +2,9 @@ package org.camunda.tngp.logstreams.impl;
 
 import static org.camunda.tngp.dispatcher.impl.log.DataFrameDescriptor.messageOffset;
 import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.positionOffset;
-import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.*;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_CLOSE;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_DEFAULT;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_OPEN;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -10,13 +12,18 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.agrona.MutableDirectBuffer;
-import org.agrona.concurrent.Agent;
-import org.camunda.tngp.dispatcher.*;
+import org.camunda.tngp.dispatcher.BlockPeek;
+import org.camunda.tngp.dispatcher.Dispatcher;
+import org.camunda.tngp.dispatcher.Subscription;
 import org.camunda.tngp.logstreams.log.LogStreamFailureListener;
 import org.camunda.tngp.logstreams.spi.LogStorage;
-import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.state.*;
+import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.state.State;
+import org.camunda.tngp.util.state.StateMachine;
+import org.camunda.tngp.util.state.TransitionState;
+import org.camunda.tngp.util.state.WaitState;
 
 public class LogStreamController implements Task
 {
@@ -38,12 +45,13 @@ public class LogStreamController implements Task
     //  MANDATORY //////////////////////////////////////////////////
     protected final String name;
     protected final LogStorage logStorage;
-    protected final AgentRunnerService agentRunnerService;
+    protected final TaskSchedulerRunnable taskScheduler;
+    protected ScheduledTask scheduledController;
+    protected ScheduledTask scheduledWriteBuffer;
 
     protected final BlockPeek blockPeek = new BlockPeek();
     protected final int maxAppendBlockSize;
     protected final Dispatcher writeBuffer;
-    protected final AgentRunnerService writeBufferAgentRunnerService;
     protected Subscription writeBufferSubscription;
     protected final Runnable openStateRunnable;
     protected final Runnable closedStateRunnable;
@@ -54,14 +62,16 @@ public class LogStreamController implements Task
     {
         this.name = logStreamBuilder.getLogName();
         this.logStorage = logStreamBuilder.getLogStorage();
-        this.agentRunnerService = logStreamBuilder.getAgentRunnerService();
+        this.taskScheduler = logStreamBuilder.getTaskScheduler();
 
         this.maxAppendBlockSize = logStreamBuilder.getMaxAppendBlockSize();
         this.writeBuffer = logStreamBuilder.getWriteBuffer();
-        this.writeBufferAgentRunnerService = logStreamBuilder.getWriteBufferAgentRunnerService();
 
-        this.openStateRunnable = () -> agentRunnerService.run(this);
-        this.closedStateRunnable = () -> agentRunnerService.remove(this);
+        this.openStateRunnable = () ->
+        {
+            scheduledController = taskScheduler.submitTask(this);
+        };
+        this.closedStateRunnable = () -> scheduledController.remove();
         this.stateMachine = new LogStateMachineAgent(
             StateMachine.<LogContext>builder(s -> new LogContext(s))
                 .initialState(closedState)
@@ -108,7 +118,7 @@ public class LogStreamController implements Task
                 }
 
                 writeBufferSubscription = writeBuffer.getSubscriptionByName("log-appender");
-                writeBufferAgentRunnerService.run(writeBuffer.getConductorAgent());
+                scheduledWriteBuffer = taskScheduler.submitTask(writeBuffer.getConductor());
 
                 context.take(TRANSITION_DEFAULT);
                 stateMachine.completeOpenFuture(null);
@@ -223,8 +233,7 @@ public class LogStreamController implements Task
         @Override
         public void work(LogContext context)
         {
-            final Agent conductorAgent = writeBuffer.getConductorAgent();
-            writeBufferAgentRunnerService.remove(conductorAgent);
+            scheduledWriteBuffer.remove();
             context.take(TRANSITION_DEFAULT);
         }
     }

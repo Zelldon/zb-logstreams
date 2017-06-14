@@ -21,8 +21,9 @@ import java.util.function.BiConsumer;
 import org.camunda.tngp.logstreams.log.*;
 import org.camunda.tngp.logstreams.spi.*;
 import org.camunda.tngp.util.DeferredCommandContext;
-import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
+import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
 import org.camunda.tngp.util.state.*;
 
 public class StreamProcessorController implements Task
@@ -93,7 +94,8 @@ public class StreamProcessorController implements Task
 
     protected final StreamProcessorErrorHandler streamProcessorErrorHandler;
 
-    protected final AgentRunnerService agentRunnerService;
+    protected final TaskSchedulerRunnable taskScheduler;
+    protected ScheduledTask scheduledController;
     protected final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     protected final EventFilter eventFilter;
@@ -103,7 +105,7 @@ public class StreamProcessorController implements Task
     public StreamProcessorController(StreamProcessorContext context)
     {
         this.streamProcessorContext = context;
-        this.agentRunnerService = context.getAgentRunnerService();
+        this.taskScheduler = context.getTaskScheduler();
         this.streamProcessor = context.getStreamProcessor();
         this.sourceLogStreamReader = context.getSourceLogStreamReader();
         this.targetLogStreamReader = context.getTargetLogStreamReader();
@@ -151,7 +153,7 @@ public class StreamProcessorController implements Task
         {
             try
             {
-                agentRunnerService.run(this);
+                scheduledController = taskScheduler.submitTask(this);
             }
             catch (Exception e)
             {
@@ -626,7 +628,7 @@ public class StreamProcessorController implements Task
             {
                 context.completeFuture();
 
-                agentRunnerService.remove(StreamProcessorController.this);
+                scheduledController.remove();
             }
         }
     }

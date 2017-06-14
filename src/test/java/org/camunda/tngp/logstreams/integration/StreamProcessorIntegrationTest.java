@@ -12,25 +12,30 @@
  */
 package org.camunda.tngp.logstreams.integration;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.*;
-import static org.camunda.tngp.util.buffer.BufferUtil.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.readLogAndAssertEvents;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.waitUntilWrittenEvents;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.waitUntilWrittenKey;
+import static org.camunda.tngp.logstreams.integration.util.LogIntegrationTestUtil.writeLogEvents;
+import static org.camunda.tngp.util.buffer.BufferUtil.wrapString;
 
 import java.io.FileNotFoundException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.agrona.ErrorHandler;
+import org.agrona.concurrent.BackoffIdleStrategy;
+import org.agrona.concurrent.IdleStrategy;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.status.CountersManager;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.impl.LogStreamController;
 import org.camunda.tngp.logstreams.integration.util.ControllableFsLogStorage;
 import org.camunda.tngp.logstreams.integration.util.ControllableFsLogStreamBuilder;
 import org.camunda.tngp.logstreams.integration.util.Counter;
-import org.camunda.tngp.logstreams.log.BufferedLogStreamReader;
-import org.camunda.tngp.logstreams.log.LogStream;
-import org.camunda.tngp.logstreams.log.LogStreamReader;
-import org.camunda.tngp.logstreams.log.LogStreamWriter;
-import org.camunda.tngp.logstreams.log.LoggedEvent;
+import org.camunda.tngp.logstreams.log.*;
 import org.camunda.tngp.logstreams.processor.EventProcessor;
 import org.camunda.tngp.logstreams.processor.StreamProcessor;
 import org.camunda.tngp.logstreams.processor.StreamProcessorController;
@@ -38,9 +43,8 @@ import org.camunda.tngp.logstreams.snapshot.SerializableWrapper;
 import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotSupport;
 import org.camunda.tngp.test.util.TestUtil;
-import org.camunda.tngp.util.agent.AgentRunnerService;
-import org.camunda.tngp.util.agent.SharedAgentRunnerService;
-import org.camunda.tngp.util.agent.SimpleAgentRunnerFactory;
+import org.camunda.tngp.util.newagent.TaskExecutor;
+import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,7 +59,7 @@ public class StreamProcessorIntegrationTest
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
-    private AgentRunnerService agentRunnerService;
+    private TaskSchedulerRunnable taskScheduler;
 
     private LogStream sourceLogStream;
     private LogStream targetLogStream;
@@ -68,7 +72,18 @@ public class StreamProcessorIntegrationTest
     @Before
     public void setup()
     {
-        agentRunnerService = new SharedAgentRunnerService(new SimpleAgentRunnerFactory(), "test");
+        final IdleStrategy defaultIdleStrategy = new BackoffIdleStrategy(100, 10, TimeUnit.MICROSECONDS.toNanos(1), TimeUnit.MILLISECONDS.toNanos(100));
+        final ErrorHandler defaultErrorHandler = (e) -> e.printStackTrace();
+
+        final CountersManager countersManager = new CountersManager(new UnsafeBuffer(new byte[8192]), new UnsafeBuffer(new byte[2048]));
+
+        final TaskExecutor taskExecutor = new TaskExecutor(10, defaultIdleStrategy, defaultErrorHandler);
+
+        taskScheduler = new TaskSchedulerRunnable(new TaskExecutor[]{ taskExecutor }, countersManager);
+
+        TaskExecutor.runOnThread(taskExecutor);
+
+        new Thread(taskScheduler).start();
 
         resourceCounter = new SerializableWrapper<>(new Counter());
 
@@ -80,16 +95,14 @@ public class StreamProcessorIntegrationTest
                 .logRootPath(logPath)
                 .deleteOnClose(true)
                 .logSegmentSize(1024 * 1024 * 16)
-                .agentRunnerService(agentRunnerService)
-                .writeBufferAgentRunnerService(agentRunnerService)
+                .taskScheduler(taskScheduler)
                 .build();
 
         targetLogStream = LogStreams.createFsLogStream(wrapString("target"), 1)
                 .logRootPath(logPath)
                 .deleteOnClose(true)
                 .logSegmentSize(1024 * 1024 * 16)
-                .agentRunnerService(agentRunnerService)
-                .writeBufferAgentRunnerService(agentRunnerService)
+                .taskScheduler(taskScheduler)
                 .build();
 
         sourceLogStream.open();
@@ -102,7 +115,7 @@ public class StreamProcessorIntegrationTest
         sourceLogStream.close();
         targetLogStream.close();
 
-        agentRunnerService.close();
+        taskScheduler.exit();
     }
 
     @Test
@@ -112,7 +125,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(position -> false)
             .snapshotStorage(snapshotStorage)
             .build();
@@ -176,7 +189,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("increment-processor", 1, streamProcessor)
             .sourceStream(sourceLogStream)
             .targetStream(sourceLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(position -> isSnapshotPoint.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -225,7 +238,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(pos -> isLastLogEntry.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -272,7 +285,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(pos -> isSnapshotPoint.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -316,7 +329,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(pos -> false)
             .snapshotStorage(snapshotStorage)
             .build();
@@ -360,7 +373,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("processor-1", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(pos -> isSnapshotPoint1.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -369,7 +382,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("processor-2", 2, new CopyStreamProcessor(resourceCounter2))
             .sourceStream(sourceLogStream)
             .targetStream(targetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(pos -> isSnapshotPoint2.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -423,8 +436,7 @@ public class StreamProcessorIntegrationTest
                 .logRootPath(tempFolder.getRoot().getAbsolutePath())
                 .deleteOnClose(true)
                 .logSegmentSize(1024 * 1024 * 16)
-                .agentRunnerService(agentRunnerService)
-                .writeBufferAgentRunnerService(agentRunnerService)
+                .taskScheduler(taskScheduler)
                 .build();
 
         final ControllableFsLogStorage controllableTargetLogStorage = (ControllableFsLogStorage) controllableTargetLogStream.getLogStorage();
@@ -436,7 +448,7 @@ public class StreamProcessorIntegrationTest
             .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
             .sourceStream(sourceLogStream)
             .targetStream(controllableTargetLogStream)
-            .agentRunnerService(agentRunnerService)
+            .taskScheduler(taskScheduler)
             .snapshotPolicy(position -> isSnapshotPoint.getAndSet(false))
             .snapshotStorage(snapshotStorage)
             .build();
@@ -488,7 +500,7 @@ public class StreamProcessorIntegrationTest
                 .readOnly(true)
                 .sourceStream(sourceLogStream)
                 .targetStream(targetLogStream)
-                .agentRunnerService(agentRunnerService)
+                .taskScheduler(taskScheduler)
                 .snapshotPolicy(position -> false)
                 .snapshotStorage(snapshotStorage)
                 .build();
@@ -517,7 +529,7 @@ public class StreamProcessorIntegrationTest
                 .createStreamProcessor("copy-processor", 1, new CopyStreamProcessor(resourceCounter))
                 .sourceStream(sourceLogStream)
                 .targetStream(targetLogStream)
-                .agentRunnerService(agentRunnerService)
+                .taskScheduler(taskScheduler)
                 .snapshotPolicy(position -> false)
                 .snapshotStorage(snapshotStorage)
                 .build();

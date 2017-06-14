@@ -1,7 +1,9 @@
 package org.camunda.tngp.logstreams.impl;
 
 import static org.camunda.tngp.logstreams.impl.LogEntryDescriptor.getPosition;
-import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.*;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_CLOSE;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_DEFAULT;
+import static org.camunda.tngp.logstreams.impl.LogStateMachineAgent.TRANSITION_OPEN;
 import static org.camunda.tngp.logstreams.log.LogStreamUtil.INVALID_ADDRESS;
 import static org.camunda.tngp.logstreams.spi.LogStorage.OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
 import static org.camunda.tngp.logstreams.spi.LogStorage.OP_RESULT_INVALID_ADDR;
@@ -13,9 +15,13 @@ import org.agrona.concurrent.UnsafeBuffer;
 import org.agrona.concurrent.status.Position;
 import org.camunda.tngp.logstreams.impl.log.index.LogBlockIndex;
 import org.camunda.tngp.logstreams.spi.*;
-import org.camunda.tngp.util.agent.AgentRunnerService;
+import org.camunda.tngp.util.newagent.ScheduledTask;
 import org.camunda.tngp.util.newagent.Task;
-import org.camunda.tngp.util.state.*;
+import org.camunda.tngp.util.newagent.TaskSchedulerRunnable;
+import org.camunda.tngp.util.state.State;
+import org.camunda.tngp.util.state.StateMachine;
+import org.camunda.tngp.util.state.TransitionState;
+import org.camunda.tngp.util.state.WaitState;
 
 /**
  * Represents the log block index controller, which creates the log block index
@@ -49,7 +55,8 @@ public class LogBlockIndexController implements Task
     protected final String name;
     protected final LogStorage logStorage;
     protected final LogBlockIndex blockIndex;
-    protected final AgentRunnerService agentRunnerService;
+    protected final TaskSchedulerRunnable taskScheduler;
+    protected ScheduledTask scheduledController;
 
     /**
      * Defines the block size for which an index will be created.
@@ -88,7 +95,7 @@ public class LogBlockIndexController implements Task
         this.name = logStreamBuilder.getLogName();
         this.logStorage = logStreamBuilder.getLogStorage();
         this.blockIndex = logStreamBuilder.getBlockIndex();
-        this.agentRunnerService = logStreamBuilder.getAgentRunnerService();
+        this.taskScheduler = logStreamBuilder.getTaskScheduler();
         this.commitPosition = commitPosition;
 
         this.deviation = logStreamBuilder.getDeviation();
@@ -99,8 +106,12 @@ public class LogBlockIndexController implements Task
         ioBuffer = ByteBuffer.allocateDirect(bufferSize);
         buffer.wrap(ioBuffer);
 
-        this.openStateRunnable = () -> agentRunnerService.run(this);
-        this.closedStateRunnable = () -> agentRunnerService.remove(this);
+        this.openStateRunnable = () ->
+        {
+            scheduledController = taskScheduler.submitTask(this);
+        };
+        this.closedStateRunnable = () -> scheduledController.remove();
+
         this.stateMachine = new LogStateMachineAgent(
             StateMachine.<LogContext>builder(s -> new LogContext(s))
                 .initialState(closedState)

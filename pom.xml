@@ -23,7 +23,7 @@
     <dependency>
       <groupId>org.camunda.tngp</groupId>
       <artifactId>dispatcher</artifactId>
-      <version>1.0.0-alpha4</version>
+      <version>1.0.0-SNAPSHOT</version>
     </dependency>
 
     <dependency>
