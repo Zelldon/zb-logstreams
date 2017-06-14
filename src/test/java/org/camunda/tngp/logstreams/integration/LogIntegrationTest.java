@@ -12,6 +12,7 @@ import org.agrona.concurrent.UnsafeBuffer;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.log.*;
 import org.camunda.tngp.util.newagent.TaskScheduler;
+import org.camunda.tngp.util.newagent.TaskSchedulerImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -32,7 +33,7 @@ public class LogIntegrationTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createDefaultExecutor();
+        taskScheduler = TaskSchedulerImpl.createDefaultExecutor();
 
         final String logPath = tempFolder.getRoot().getAbsolutePath();
 

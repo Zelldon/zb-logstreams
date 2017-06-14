@@ -38,6 +38,7 @@ import org.camunda.tngp.logstreams.spi.SnapshotStorage;
 import org.camunda.tngp.logstreams.spi.SnapshotSupport;
 import org.camunda.tngp.test.util.TestUtil;
 import org.camunda.tngp.util.newagent.TaskScheduler;
+import org.camunda.tngp.util.newagent.TaskSchedulerImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -65,7 +66,7 @@ public class StreamProcessorIntegrationTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createDefaultExecutor();
+        taskScheduler = TaskSchedulerImpl.createDefaultExecutor();
 
         resourceCounter = new SerializableWrapper<>(new Counter());
 

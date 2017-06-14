@@ -17,6 +17,7 @@ import org.camunda.tngp.logstreams.log.BufferedLogStreamReader;
 import org.camunda.tngp.logstreams.log.LogStream;
 import org.camunda.tngp.logstreams.log.LogStreamReader;
 import org.camunda.tngp.util.newagent.TaskScheduler;
+import org.camunda.tngp.util.newagent.TaskSchedulerImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -51,7 +52,7 @@ public class LogRecoveryTest
     {
         logPath = temFolder.getRoot().getAbsolutePath();
 
-        taskScheduler = TaskScheduler.createDefaultExecutor();
+        taskScheduler = TaskSchedulerImpl.createDefaultExecutor();
 
         logStreamBuilder = getLogStreamBuilder();
     }

@@ -10,6 +10,7 @@ import org.agrona.DirectBuffer;
 import org.camunda.tngp.logstreams.LogStreams;
 import org.camunda.tngp.logstreams.log.LogStream;
 import org.camunda.tngp.util.newagent.TaskScheduler;
+import org.camunda.tngp.util.newagent.TaskSchedulerImpl;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
@@ -26,7 +27,7 @@ public class DeleteOnCloseTest
     @Before
     public void setup()
     {
-        taskScheduler = TaskScheduler.createDefaultExecutor();
+        taskScheduler = TaskSchedulerImpl.createDefaultExecutor();
     }
 
     @After
