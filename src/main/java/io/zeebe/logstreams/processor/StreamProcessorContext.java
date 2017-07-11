@@ -206,5 +206,4 @@ public class StreamProcessorContext
     {
         return streamProcessorErrorHandler;
     }
-
 }

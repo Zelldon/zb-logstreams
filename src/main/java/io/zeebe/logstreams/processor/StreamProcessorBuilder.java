@@ -17,9 +17,7 @@ import java.util.Objects;
 
 import io.zeebe.logstreams.log.*;
 import io.zeebe.logstreams.snapshot.TimeBasedSnapshotPolicy;
-import io.zeebe.logstreams.spi.SnapshotPolicy;
-import io.zeebe.logstreams.spi.SnapshotPositionProvider;
-import io.zeebe.logstreams.spi.SnapshotStorage;
+import io.zeebe.logstreams.spi.*;
 import io.zeebe.util.DeferredCommandContext;
 import io.zeebe.util.actor.ActorScheduler;
 
@@ -146,7 +144,7 @@ public class StreamProcessorBuilder
 
         if (snapshotPolicy == null)
         {
-            snapshotPolicy = new TimeBasedSnapshotPolicy(Duration.ofMinutes(1));
+            snapshotPolicy = new TimeBasedSnapshotPolicy(Duration.ofMinutes(10));
         }
 
         if (snapshotPositionProvider == null)
