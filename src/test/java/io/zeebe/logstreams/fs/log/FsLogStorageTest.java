@@ -15,30 +15,26 @@
  */
 package io.zeebe.logstreams.fs.log;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 import static io.zeebe.dispatcher.impl.PositionUtil.partitionOffset;
 import static io.zeebe.util.StringUtil.getBytes;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.Arrays;
 import java.util.Random;
 
 import io.zeebe.dispatcher.impl.PositionUtil;
-import io.zeebe.logstreams.impl.log.fs.FsLogSegmentDescriptor;
-import io.zeebe.logstreams.impl.log.fs.FsLogStorage;
-import io.zeebe.logstreams.impl.log.fs.FsLogStorageConfiguration;
+import io.zeebe.logstreams.impl.log.fs.*;
 import io.zeebe.logstreams.spi.LogStorage;
 import io.zeebe.util.FileUtil;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.status.CountersManager;
+import org.junit.*;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
@@ -62,13 +58,17 @@ public class FsLogStorageTest
 
     private FsLogStorage fsLogStorage;
 
+    private CountersManager countersManager;
+
     @Before
     public void init()
     {
+        countersManager = new CountersManager(new UnsafeBuffer(new byte[4 * 1024]), new UnsafeBuffer(new byte[2 * 1024]));
+
         logPath = tempFolder.getRoot().getAbsolutePath();
         logDirectory = new File(logPath);
 
-        fsStorageConfig = new FsLogStorageConfiguration(SEGMENT_SIZE, logPath, 0, false);
+        fsStorageConfig = new FsLogStorageConfiguration(SEGMENT_SIZE, logPath, 0, false, countersManager);
 
         fsLogStorage = new FsLogStorage(fsStorageConfig);
     }
@@ -149,7 +149,7 @@ public class FsLogStorageTest
     @Test
     public void shouldDeleteLogOnCloseStorage()
     {
-        fsStorageConfig = new FsLogStorageConfiguration(SEGMENT_SIZE, logPath, 0, true);
+        fsStorageConfig = new FsLogStorageConfiguration(SEGMENT_SIZE, logPath, 0, true, countersManager);
         fsLogStorage = new FsLogStorage(fsStorageConfig);
 
         fsLogStorage.open();

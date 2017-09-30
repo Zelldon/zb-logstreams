@@ -17,6 +17,8 @@ package io.zeebe.logstreams.impl.log.fs;
 
 import java.io.File;
 
+import org.agrona.concurrent.status.CountersManager;
+
 public class FsLogStorageConfiguration
 {
     protected static final String FRAGMENT_FILE_NAME_TEMPLATE = "%s" + File.separatorChar + "%02d.data";
@@ -35,13 +37,15 @@ public class FsLogStorageConfiguration
     protected final String path;
     protected final int initialSegmentId;
     protected final boolean deleteOnClose;
+    private CountersManager countersManager;
 
-    public FsLogStorageConfiguration(int segmentSize, String path, int initialSegmentId, boolean deleteOnClose)
+    public FsLogStorageConfiguration(int segmentSize, String path, int initialSegmentId, boolean deleteOnClose, CountersManager countersManager)
     {
         this.segmentSize = segmentSize;
         this.path = path;
         this.initialSegmentId = initialSegmentId;
         this.deleteOnClose = deleteOnClose;
+        this.countersManager = countersManager;
     }
 
     public String getFragmentFileNameTemplate()
@@ -102,5 +106,15 @@ public class FsLogStorageConfiguration
     public int getInitialSegmentId()
     {
         return initialSegmentId;
+    }
+
+    public CountersManager getCountersManager()
+    {
+        return countersManager;
+    }
+
+    public void setCountersManager(CountersManager countersManager)
+    {
+        this.countersManager = countersManager;
     }
 }

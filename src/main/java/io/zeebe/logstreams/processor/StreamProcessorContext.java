@@ -23,6 +23,7 @@ import io.zeebe.logstreams.spi.SnapshotPositionProvider;
 import io.zeebe.logstreams.spi.SnapshotStorage;
 import io.zeebe.util.DeferredCommandContext;
 import io.zeebe.util.actor.ActorScheduler;
+import org.agrona.concurrent.status.CountersManager;
 
 public class StreamProcessorContext
 {
@@ -51,6 +52,8 @@ public class StreamProcessorContext
     protected StreamProcessorErrorHandler streamProcessorErrorHandler;
 
     protected DeferredCommandContext streamProcessorCmdContext;
+
+    protected CountersManager countersManager;
 
     public LogStream getSourceStream()
     {
@@ -220,6 +223,16 @@ public class StreamProcessorContext
     public StreamProcessorErrorHandler getErrorHandler()
     {
         return streamProcessorErrorHandler;
+    }
+
+    public CountersManager getCountersManager()
+    {
+        return countersManager;
+    }
+
+    public void setCountersManager(CountersManager countersManager)
+    {
+        this.countersManager = countersManager;
     }
 
 }

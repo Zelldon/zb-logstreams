@@ -15,12 +15,12 @@
  */
 package io.zeebe.logstreams.integration.util;
 
-import org.agrona.DirectBuffer;
+import java.io.File;
+
 import io.zeebe.logstreams.fs.FsLogStreamBuilder;
 import io.zeebe.logstreams.impl.log.fs.FsLogStorage;
 import io.zeebe.logstreams.impl.log.fs.FsLogStorageConfiguration;
-
-import java.io.File;
+import org.agrona.DirectBuffer;
 
 public class ControllableFsLogStreamBuilder extends FsLogStreamBuilder
 {
@@ -44,7 +44,8 @@ public class ControllableFsLogStreamBuilder extends FsLogStreamBuilder
         final FsLogStorageConfiguration storageConfig = new FsLogStorageConfiguration(logSegmentSize,
             logDirectory,
             initialLogSegmentId,
-            deleteOnClose);
+            deleteOnClose,
+            countersManager);
 
         final FsLogStorage storage = new ControllableFsLogStorage(storageConfig);
 

@@ -27,6 +27,8 @@ import io.zeebe.logstreams.spi.*;
 import io.zeebe.util.DeferredCommandContext;
 import io.zeebe.util.actor.*;
 import io.zeebe.util.state.*;
+import org.agrona.concurrent.status.AtomicCounter;
+import org.agrona.concurrent.status.CountersManager;
 import org.slf4j.Logger;
 
 public class StreamProcessorController implements Actor
@@ -107,6 +109,11 @@ public class StreamProcessorController implements Actor
     protected final EventFilter reprocessingEventFilter;
     protected final boolean isReadOnlyProcessor;
 
+    private final CountersManager countersManager;
+
+    private AtomicCounter processedEventsCounter;
+    private AtomicCounter skippedEventsCounter;
+
     public StreamProcessorController(StreamProcessorContext context)
     {
         this.streamProcessorContext = context;
@@ -123,6 +130,7 @@ public class StreamProcessorController implements Actor
         this.reprocessingEventFilter = context.getReprocessingEventFilter();
         this.isReadOnlyProcessor = context.isReadOnlyProcessor();
         this.streamProcessorErrorHandler = context.getErrorHandler();
+        this.countersManager = context.getCountersManager();
     }
 
     @Override
@@ -246,6 +254,7 @@ public class StreamProcessorController implements Actor
 
     private class OpeningState implements TransitionState<Context>
     {
+
         @Override
         public void work(Context context)
         {
@@ -257,6 +266,9 @@ public class StreamProcessorController implements Actor
 
             targetStream.removeFailureListener(targetLogStreamFailureListener);
             targetStream.registerFailureListener(targetLogStreamFailureListener);
+
+            processedEventsCounter = countersManager.newCounter(String.format("%s.processedEvents", name()));
+            skippedEventsCounter = countersManager.newCounter(String.format("%s.skippedEvents", name()));
 
             context.take(TRANSITION_DEFAULT);
         }
@@ -325,10 +337,12 @@ public class StreamProcessorController implements Actor
             {
                 eventProcessor.processEvent();
                 processEvent = true;
+                processedEventsCounter.orderedIncrement();
             }
             else
             {
                 context.take(TRANSITION_DEFAULT);
+                skippedEventsCounter.orderedIncrement();
             }
             return processEvent;
         };
@@ -650,6 +664,9 @@ public class StreamProcessorController implements Actor
         @Override
         public void work(Context context)
         {
+            processedEventsCounter.close();
+            skippedEventsCounter.close();
+
             streamProcessor.onClose();
 
             streamProcessorContext.getTargetLogStreamReader().close();

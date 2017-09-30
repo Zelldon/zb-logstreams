@@ -43,6 +43,8 @@ import io.zeebe.util.FileUtil;
 import org.agrona.IoUtil;
 import org.agrona.LangUtil;
 import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.status.AtomicCounter;
+import org.agrona.concurrent.status.CountersManager;
 import org.slf4j.Logger;
 
 public class FsLogStorage implements LogStorage
@@ -67,9 +69,16 @@ public class FsLogStorage implements LogStorage
 
     protected volatile int state = STATE_CREATED;
 
+    private final AtomicCounter writeCounter;
+    private final AtomicCounter readCounter;
+
     public FsLogStorage(final FsLogStorageConfiguration cfg)
     {
         this.config = cfg;
+
+        final CountersManager countersManager = cfg.getCountersManager();
+        writeCounter = countersManager.newCounter(String.format("%s.fsBytesWritten", cfg.getPath()));
+        readCounter = countersManager.newCounter(String.format("%s.fsBytesRead", cfg.getPath()));
     }
 
     @Override
@@ -109,6 +118,7 @@ public class FsLogStorage implements LogStorage
                 opresult = position(currentSegment.getSegmentId(), appendResult);
 
                 markSegmentAsDirty(currentSegment);
+                writeCounter.addOrdered(requiredCapacity);
             }
         }
 
@@ -240,6 +250,7 @@ public class FsLogStorage implements LogStorage
 
             if (readResult >= 0)
             {
+                readCounter.addOrdered(readResult);
                 //processing
                 final int processingResult = processor.process(readBuffer, readResult);
                 opStatus = processingResult < 0 ? processingResult
@@ -427,6 +438,9 @@ public class FsLogStorage implements LogStorage
     @Override
     public void close()
     {
+        readCounter.close();
+        writeCounter.close();
+
         ensureOpenedStorage();
 
         logSegments.closeAll();

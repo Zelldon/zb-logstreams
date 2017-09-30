@@ -47,7 +47,8 @@ public class FsLogStreamBuilder extends LogStreamImpl.LogStreamBuilder<FsLogStre
         final FsLogStorageConfiguration storageConfig = new FsLogStorageConfiguration(logSegmentSize,
             logDirectory,
             initialLogSegmentId,
-            deleteOnClose);
+            deleteOnClose,
+            countersManager);
 
         logStorage = new FsLogStorage(storageConfig);
         logStorage.open();

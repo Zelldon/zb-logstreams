@@ -23,6 +23,8 @@ import io.zeebe.logstreams.snapshot.TimeBasedSnapshotPolicy;
 import io.zeebe.logstreams.spi.*;
 import io.zeebe.util.DeferredCommandContext;
 import io.zeebe.util.actor.ActorScheduler;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.status.CountersManager;
 
 public class StreamProcessorBuilder
 {
@@ -51,6 +53,8 @@ public class StreamProcessorBuilder
 
     protected DeferredCommandContext streamProcessorCmdQueue;
 
+    protected CountersManager countersManager;
+
     protected boolean readOnly;
 
     public StreamProcessorBuilder(int id, String name, StreamProcessor streamProcessor)
@@ -77,6 +81,13 @@ public class StreamProcessorBuilder
         this.actorScheduler = actorScheduler;
         return this;
     }
+
+    public StreamProcessorBuilder countersManager(CountersManager countersManager)
+    {
+        this.countersManager = countersManager;
+        return this;
+    }
+
 
     public StreamProcessorBuilder snapshotPolicy(SnapshotPolicy snapshotPolicy)
     {
@@ -178,6 +189,11 @@ public class StreamProcessorBuilder
         {
             errorHandler = new DefaultErrorHandler();
         }
+
+        if (countersManager == null)
+        {
+            countersManager = new CountersManager(new UnsafeBuffer(new byte[4 * 1024]), new UnsafeBuffer(new byte[2 * 1024]));
+        }
     }
 
     public StreamProcessorController build()
@@ -210,6 +226,8 @@ public class StreamProcessorBuilder
         ctx.setReadOnly(readOnly);
 
         ctx.setErrorHandler(errorHandler);
+
+        ctx.setCountersManager(countersManager);
 
         return new StreamProcessorController(ctx);
     }
