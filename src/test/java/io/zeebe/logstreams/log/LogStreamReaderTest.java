@@ -71,6 +71,8 @@ public class LogStreamReaderTest
     public void clear()
     {
         logStream.close();
+        reader.close();
+        actorScheduler.close();
     }
 
     private long[] writeEvents(int count)
@@ -162,7 +164,7 @@ public class LogStreamReaderTest
     public void shouldReturnBigLoggedEvent()
     {
         // given
-        final byte[] bytes = new byte[1024 * 64];
+        final byte[] bytes = new byte[BufferedLogStreamReader.DEFAULT_INITIAL_BUFFER_CAPACITY * 2];
         writeEvent(0xFF, new UnsafeBuffer(bytes));
         reader.wrap(logStream);
         logStream.getLogStreamController().doWork();
