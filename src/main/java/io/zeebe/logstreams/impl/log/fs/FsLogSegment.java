@@ -16,10 +16,10 @@
 package io.zeebe.logstreams.impl.log.fs;
 
 import io.zeebe.logstreams.impl.Loggers;
+import io.zeebe.util.FileUtil;
 import org.agrona.IoUtil;
 import org.agrona.LangUtil;
 import org.agrona.concurrent.UnsafeBuffer;
-import io.zeebe.util.FileUtil;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -30,8 +30,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
 import static io.zeebe.logstreams.impl.log.fs.FsLogSegmentDescriptor.*;
-import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_APPEND_FAILED;
-import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_CANT_APPEND_TEMPORALY;
 
 public class FsLogSegment
 {
@@ -217,17 +215,12 @@ public class FsLogSegment
             try
             {
                 final int writtenBytes = fileChannel.write(block, newSize);
-                if (writtenBytes == 0)
-                {
-                    LOG.warn("Unable to temporary write more bytes to file channel");
-                    return OP_RESULT_CANT_APPEND_TEMPORALY;
-                }
                 newSize += writtenBytes;
             }
             catch (Exception e)
             {
                 LOG.error("Failed to write", e);
-                return OP_RESULT_APPEND_FAILED;
+                return -1;
             }
         }
 

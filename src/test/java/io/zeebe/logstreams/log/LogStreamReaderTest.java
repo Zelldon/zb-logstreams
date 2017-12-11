@@ -16,6 +16,7 @@
 package io.zeebe.logstreams.log;
 
 import io.zeebe.logstreams.LogStreams;
+import io.zeebe.test.util.TestUtil;
 import io.zeebe.util.actor.ActorScheduler;
 import io.zeebe.util.actor.ActorSchedulerBuilder;
 import io.zeebe.util.buffer.BufferUtil;
@@ -95,10 +96,7 @@ public class LogStreamReaderTest
             .key(key)
             .value(eventValue)
             .tryWrite();
-
-            logStream.getLogStreamController().doWork();
         }
-
 
         return position;
     }
@@ -127,7 +125,6 @@ public class LogStreamReaderTest
     }
 
     @Test
-    // TODO fails?
     public void shouldNotHaveNext()
     {
         // given
@@ -144,11 +141,10 @@ public class LogStreamReaderTest
         // given
         writeEvent(1, EVENT_VALUE);
         reader.wrap(logStream);
-        logStream.getLogStreamController().doWork();
 
         // when
         // then
-        assertThat(reader.hasNext()).isTrue();
+        TestUtil.waitUntil(() -> reader.hasNext());
     }
 
     @Test
@@ -157,12 +153,12 @@ public class LogStreamReaderTest
         // given
         writeEvent(0xFF, EVENT_VALUE);
         reader.wrap(logStream);
-        logStream.getLogStreamController().doWork();
 
         // when
-        final LoggedEvent loggedEvent = reader.next();
+        TestUtil.waitUntil(() -> reader.hasNext());
 
         // then
+        final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
     }
 
@@ -174,12 +170,12 @@ public class LogStreamReaderTest
         final byte[] bytes = new byte[BufferedLogStreamReader.DEFAULT_INITIAL_BUFFER_CAPACITY * 2];
         writeEvent(0xFF, new UnsafeBuffer(bytes));
         reader.wrap(logStream);
-        logStream.getLogStreamController().doWork();
 
         // when
-        final LoggedEvent loggedEvent = reader.next();
+        TestUtil.waitUntil(() -> reader.hasNext());
 
         // then
+        final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
     }
 
@@ -188,17 +184,19 @@ public class LogStreamReaderTest
     {
         // given
         final byte[] bytes = new byte[BufferedLogStreamReader.DEFAULT_INITIAL_BUFFER_CAPACITY * 2];
-        final long[] longs = writeEvents(1000, new UnsafeBuffer(bytes));
+        final long[] positions = writeEvents(1000, new UnsafeBuffer(bytes));
         reader.wrap(logStream);
-//        while (logStream.getLogStreamController().doWork() > 0);
 
         // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+
         // then
         reader.seekToFirstEvent();
         for (int i = 0; i < 1000; i++)
         {
             final LoggedEvent loggedEvent = reader.next();
             assertThat(loggedEvent.getKey()).isEqualTo(i);
+            assertThat(loggedEvent.getPosition()).isEqualTo(positions[i]);
         }
     }
 
