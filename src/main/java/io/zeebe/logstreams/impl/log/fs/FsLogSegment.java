@@ -30,6 +30,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
 import static io.zeebe.logstreams.impl.log.fs.FsLogSegmentDescriptor.*;
+import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_APPEND_FAILED;
+import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_CANT_APPEND_TEMPORALY;
 
 public class FsLogSegment
 {
@@ -218,14 +220,14 @@ public class FsLogSegment
                 if (writtenBytes == 0)
                 {
                     LOG.warn("Unable to temporary write more bytes to file channel");
-                    return -1;
+                    return OP_RESULT_CANT_APPEND_TEMPORALY;
                 }
                 newSize += writtenBytes;
             }
             catch (Exception e)
             {
                 LOG.error("Failed to write", e);
-                return -1;
+                return OP_RESULT_APPEND_FAILED;
             }
         }
 

@@ -53,6 +53,19 @@ public interface LogStorage
     long OP_RESULT_BLOCK_SIZE_TOO_BIG = -4L;
 
     /**
+     * Status code returned by the {@link #append(ByteBuffer)} operation
+     * in case the to appended block can't be written in to the storage temporaly.
+     * Indicates that it should be tried again a moment later.
+     */
+    int OP_RESULT_CANT_APPEND_TEMPORALY = -5;
+
+    /**
+     * Status code returned by the {@link #append(ByteBuffer)} operation
+     * in case the appending failed.
+     */
+    int OP_RESULT_APPEND_FAILED = -6;
+
+    /**
      * Writes a block containing one or multiple log entries in the storage and returns the address at which
      * the block has been written.
      *

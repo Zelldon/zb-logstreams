@@ -75,23 +75,30 @@ public class LogStreamReaderTest
         actorScheduler.close();
     }
 
-    private long[] writeEvents(int count)
+    private long[] writeEvents(int count, DirectBuffer eventValue)
     {
         final long[] positions = new long[count];
 
         for (int i = 0; i < count; i++)
         {
-            positions[i] = writeEvent(i, EVENT_VALUE);
+            positions[i] = writeEvent(i, eventValue);
         }
         return positions;
     }
 
     private long writeEvent(long key, DirectBuffer eventValue)
     {
-        final long position = writer
+        long position = -1;
+        while (position <= 0)
+        {
+            position = writer
             .key(key)
             .value(eventValue)
             .tryWrite();
+
+            logStream.getLogStreamController().doWork();
+        }
+
 
         return position;
     }
@@ -174,6 +181,25 @@ public class LogStreamReaderTest
 
         // then
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+    }
+
+    @Test
+    public void shouldReturnBigLoggedEvents()
+    {
+        // given
+        final byte[] bytes = new byte[BufferedLogStreamReader.DEFAULT_INITIAL_BUFFER_CAPACITY * 2];
+        final long[] longs = writeEvents(1000, new UnsafeBuffer(bytes));
+        reader.wrap(logStream);
+//        while (logStream.getLogStreamController().doWork() > 0);
+
+        // when
+        // then
+        reader.seekToFirstEvent();
+        for (int i = 0; i < 1000; i++)
+        {
+            final LoggedEvent loggedEvent = reader.next();
+            assertThat(loggedEvent.getKey()).isEqualTo(i);
+        }
     }
 
 }

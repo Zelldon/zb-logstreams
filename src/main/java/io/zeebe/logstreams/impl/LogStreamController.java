@@ -45,11 +45,13 @@ public class LogStreamController implements Actor
 
     protected static final int TRANSITION_FAIL = 3;
     protected static final int TRANSITION_RECOVER = 5;
+    protected static final int TRANSITION_REPEAT = 7;
 
     // STATES /////////////////////////////////////////////////////////
 
     protected final OpeningState openingState = new OpeningState();
     protected final OpenState openState = new OpenState();
+    protected final RepeatlyAppendingState repeatlyAppendingState = new RepeatlyAppendingState();
     protected final FailingState failingState = new FailingState();
     protected final FailedState failedState = new FailedState();
     protected final RecoveredState recoveredState = new RecoveredState();
@@ -90,6 +92,9 @@ public class LogStreamController implements Actor
                 .from(openingState).take(TRANSITION_FAIL).to(failingState)
                 .from(openState).take(TRANSITION_FAIL).to(failingState)
                 .from(openState).take(TRANSITION_CLOSE).to(closingState)
+                .from(openState).take(TRANSITION_REPEAT).to(repeatlyAppendingState)
+                .from(repeatlyAppendingState).take(TRANSITION_DEFAULT).to(openState)
+                .from(repeatlyAppendingState).take(TRANSITION_FAIL).to(failingState)
                 .from(failingState).take(TRANSITION_DEFAULT).to(failedState)
                 .from(failedState).take(TRANSITION_CLOSE).to(closingState)
                 .from(failedState).take(TRANSITION_RECOVER).to(recoveredState)
@@ -178,6 +183,10 @@ public class LogStreamController implements Actor
                 {
                     blockPeek.markCompleted();
                 }
+                else if (LogStorage.OP_RESULT_CANT_APPEND_TEMPORALY == address)
+                {
+                    context.take(TRANSITION_REPEAT);
+                }
                 else
                 {
                     blockPeek.markFailed();
@@ -191,6 +200,30 @@ public class LogStreamController implements Actor
             {
                 return 0;
             }
+        }
+    }
+
+    protected class RepeatlyAppendingState implements State<LogContext>
+    {
+        @Override
+        public int doWork(LogContext logContext) throws Exception
+        {
+            final ByteBuffer nioBuffer = blockPeek.getRawBuffer();
+
+            final long address = logStorage.append(nioBuffer);
+
+            if (address >= 0)
+            {
+                blockPeek.markCompleted();
+                logContext.take(TRANSITION_DEFAULT);
+            }
+            else if (LogStorage.OP_RESULT_APPEND_FAILED == address || LogStorage.OP_RESULT_BLOCK_SIZE_TOO_BIG == address)
+            {
+                blockPeek.markFailed();
+
+                logContext.take(TRANSITION_FAIL);
+            }
+            return 1;
         }
     }
 
