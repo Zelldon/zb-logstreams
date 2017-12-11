@@ -29,6 +29,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
+import java.util.NoSuchElementException;
+
 import static io.zeebe.util.StringUtil.getBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -147,10 +149,67 @@ public class LogStreamReaderTest
         TestUtil.waitUntil(() -> reader.hasNext());
     }
 
+
+    @Test
+    public void shouldThrowNoSuchElementExceptionOnNextCall()
+    {
+        //given
+        reader.wrap(logStream);
+
+        // expect
+        expectedException.expectMessage("Api protocol violation: No next log entry available; You need to probe with hasNext() first.");
+        expectedException.expect(NoSuchElementException.class);
+
+        // when
+        // then
+        reader.next();
+    }
+
     @Test
     public void shouldReturnLoggedEvent()
     {
         // given
+        final long position = writeEvent(0xFF, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+
+        // then
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        assertThat(loggedEvent.getPosition()).isEqualTo(position);
+    }
+
+    @Test
+    public void shouldReturnPositionOfCurrentLoggedEvent()
+    {
+        // given
+        final long position = writeEvent(0xFF, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+
+        // then
+        assertThat(reader.getPosition()).isEqualTo(position);
+    }
+
+    @Test
+    public void shouldReturnNoPositionIfNotActiveOrInitialized()
+    {
+        // given
+        writeEvent(0xFF, EVENT_VALUE);
+
+        // then
+        assertThat(reader.getPosition()).isEqualTo(-1);
+    }
+
+    @Test
+    public void shouldReopenAndReturnLoggedEvent()
+    {
+        // given
+        reader.close();
         writeEvent(0xFF, EVENT_VALUE);
         reader.wrap(logStream);
 
@@ -162,6 +221,63 @@ public class LogStreamReaderTest
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
     }
 
+    @Test
+    public void shouldReturnUncommitedLoggedEvent()
+    {
+        // given
+        BufferedLogStreamReader reader = new BufferedLogStreamReader(true);
+        logStream.setCommitPosition(Long.MIN_VALUE);
+        writeEvent(0xFF, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+
+        // then
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        reader.close();
+    }
+
+    @Test
+    public void shouldNotReturnUncommitedLoggedEvent()
+    {
+        // given
+        final long firstPos = writeEvent(1, EVENT_VALUE);
+        logStream.setCommitPosition(firstPos);
+        writeEvent(2, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+
+        // then
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(1);
+        assertThat(loggedEvent.getPosition()).isEqualTo(firstPos);
+
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldWrapAndSeekToEvent()
+    {
+        // given
+        writeEvent(1, EVENT_VALUE);
+        final long secondPos = writeEvent(2, EVENT_VALUE);
+
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > secondPos);
+
+        // when
+        reader.wrap(logStream, secondPos);
+
+        // then
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(2);
+        assertThat(loggedEvent.getPosition()).isEqualTo(secondPos);
+
+        assertThat(reader.hasNext()).isFalse();
+    }
 
     @Test
     public void shouldReturnBigLoggedEvent()
