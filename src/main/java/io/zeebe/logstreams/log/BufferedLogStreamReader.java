@@ -18,7 +18,6 @@ package io.zeebe.logstreams.log;
 import io.zeebe.logstreams.impl.CompleteEventsInBlockProcessor;
 import io.zeebe.logstreams.impl.LogEntryDescriptor;
 import io.zeebe.logstreams.impl.LoggedEventImpl;
-import io.zeebe.logstreams.impl.Loggers;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
 import io.zeebe.logstreams.spi.LogStorage;
 import io.zeebe.util.CloseableSilently;
@@ -31,15 +30,13 @@ import org.agrona.concurrent.UnsafeBuffer;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-import static io.zeebe.dispatcher.impl.log.DataFrameDescriptor.HEADER_LENGTH;
-import static io.zeebe.logstreams.impl.LogEntryDescriptor.HEADER_BLOCK_LENGTH;
 import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
 
-public class BufferedLogStreamReader implements LogStreamReader, CloseableSilently
+public final class BufferedLogStreamReader implements LogStreamReader, CloseableSilently
 {
-    public static final int DEFAULT_INITIAL_BUFFER_CAPACITY = 1024 * 32;
+    static final int DEFAULT_INITIAL_BUFFER_CAPACITY = 1024 * 32;
 
-    protected enum IteratorState
+    private enum IteratorState
     {
         UNINITIALIZED,
         INITIALIZED,
@@ -48,26 +45,25 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         NOT_COMMITTED;
     }
 
-    protected final LoggedEventImpl curr = new LoggedEventImpl();
+    private final LoggedEventImpl curr = new LoggedEventImpl();
 
-    protected final int headerLength = HEADER_BLOCK_LENGTH + HEADER_LENGTH;
-    protected final DirectBuffer buffer = new UnsafeBuffer(0, 0);
+    private final DirectBuffer buffer = new UnsafeBuffer(0, 0);
 
-    protected boolean readUncommittedEntries;
+    private boolean readUncommittedEntries;
 
-    protected LogStream logStream;
-    protected LogStorage logStorage;
-    protected LogBlockIndex blockIndex;
+    private CompleteEventsInBlockProcessor completeEventsInBlockProcessor = new CompleteEventsInBlockProcessor();
+    private LogStream logStream;
+    private LogStorage logStorage;
+    private LogBlockIndex blockIndex;
 
-    protected final BufferAllocator bufferAllocator = new DirectBufferAllocator();
-    protected AllocatedBuffer allocatedBuffer;
-    protected ByteBuffer ioBuffer;
-    protected int available;
-    protected long nextReadAddr;
+    private final BufferAllocator bufferAllocator = new DirectBufferAllocator();
+    private AllocatedBuffer allocatedBuffer;
+    private ByteBuffer ioBuffer;
+    private long nextReadAddr;
 
     private final int initialBufferCapacity;
 
-    protected IteratorState iteratorState = IteratorState.UNINITIALIZED;
+    private IteratorState iteratorState = IteratorState.UNINITIALIZED;
 
     public BufferedLogStreamReader()
     {
@@ -152,7 +148,7 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         seekToFirstEvent();
     }
 
-    protected void initReader(LogStream logStream)
+    private void initReader(LogStream logStream)
     {
         if (allocatedBuffer == null || isClosed())
         {
@@ -167,14 +163,14 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         this.logStream = logStream;
     }
 
-    protected void initReader(LogStorage logStorage, LogBlockIndex blockIndex)
+    private void initReader(LogStorage logStorage, LogBlockIndex blockIndex)
     {
         this.logStorage = logStorage;
         this.blockIndex = blockIndex;
         this.logStream = null;
     }
 
-    protected void clear()
+    private void clear()
     {
         curr.wrap(buffer, -1);
         nextReadAddr = -1;
@@ -214,26 +210,6 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         {
             return false;
         }
-
-//
-//        // read at least header of initial fragment
-//        if (!readMore(headerLength))
-//        {
-//            clear();
-//            return false;
-//        }
-//
-//        final int fragmentLength = curr.getFragmentLength();
-//
-//        // ensure fragment is fully read
-//        if (available < fragmentLength)
-//        {
-//            if (!readMore(available - fragmentLength))
-//            {
-//                clear();
-//                return false;
-//            }
-//        }
 
         iteratorState = IteratorState.INITIALIZED;
         do
@@ -291,26 +267,22 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         }
     }
 
-    private CompleteEventsInBlockProcessor completeEventsInBlockProcessor = new CompleteEventsInBlockProcessor();
-
-
     private int readBlockAt(long readAddress)
     {
-        prepareIoBufferForNextRead();
-        curr.wrap(buffer, 0);
+        prepareForNextRead();
 
         final int positionBeforeRead = ioBuffer.position();
-        long opResult = OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
-        while (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
+        long opResult = 0;
+        do
         {
-            opResult = logStorage.read(ioBuffer, readAddress, completeEventsInBlockProcessor);
-
-
             if (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
             {
-                ensureRemainingBufferCapacity(ioBuffer.capacity() * 2);
+                resizeBuffer(ioBuffer.capacity() * 2);
             }
-        }
+
+            opResult = logStorage.read(ioBuffer, readAddress, completeEventsInBlockProcessor);
+
+        } while (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY);
 
         final int readBytes = ioBuffer.position() - positionBeforeRead;
         if (opResult >= 0)
@@ -325,18 +297,12 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         return readBytes;
     }
 
-
-    private void prepareIoBufferForNextRead()
+    private void prepareForNextRead()
     {
         final int initialPosition = curr.getFragmentOffset();
 
         if (initialPosition > 0)
         {
-            // compact remaining data to the beginning of the buffer
-            if (available < 0 || available > ioBuffer.capacity())
-            {
-                Loggers.LOGSTREAMS_LOGGER.warn("Available is wrong {}", available);
-            }
             ioBuffer.position(initialPosition);
             ioBuffer.compact();
         }
@@ -345,30 +311,28 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
             iteratorState = IteratorState.INITIALIZED;
             ioBuffer.clear();
         }
+        curr.wrap(buffer, 0);
     }
 
-    private void ensureRemainingBufferCapacity(int requiredCapacity)
+    private void resizeBuffer(int requiredCapacity)
     {
-        if (ioBuffer.remaining() < requiredCapacity)
+        final int pos = ioBuffer.position();
+        final AllocatedBuffer newAllocatedBuffer = bufferAllocator.allocate(requiredCapacity);
+        final ByteBuffer newBuffer = newAllocatedBuffer.getRawBuffer();
+        if (pos > 0)
         {
-            final int pos = ioBuffer.position();
-            final AllocatedBuffer newAllocatedBuffer = bufferAllocator.allocate(pos + requiredCapacity);
-            final ByteBuffer newBuffer = newAllocatedBuffer.getRawBuffer();
-            if (pos > 0)
-            {
-                // copy remaining data
-                ioBuffer.flip();
-                newBuffer.put(ioBuffer);
-            }
-
-            newBuffer.limit(newBuffer.capacity());
-            newBuffer.position(pos);
-
-            allocatedBuffer.close();
-            allocatedBuffer = newAllocatedBuffer;
-            ioBuffer = newBuffer;
-            buffer.wrap(ioBuffer);
+            // copy remaining data
+            ioBuffer.flip();
+            newBuffer.put(ioBuffer);
         }
+
+        newBuffer.limit(newBuffer.capacity());
+        newBuffer.position(pos);
+
+        allocatedBuffer.close();
+        allocatedBuffer = newAllocatedBuffer;
+        ioBuffer = newBuffer;
+        buffer.wrap(ioBuffer);
     }
 
     @Override
