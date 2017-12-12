@@ -410,7 +410,6 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
         if (iteratorState == IteratorState.INITIALIZED)
         {
             iteratorState = IteratorState.ACTIVE;
-            return curr;
         }
         else
         {
@@ -418,28 +417,10 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
             final int fragmentLength = curr.getFragmentLength();
 
             final int nextFragmentOffset = offset + fragmentLength;
-//            if (nextFragmentOffset >= ioBuffer.limit())
-//            {
-//                final int readBytes = readBlockAt(nextReadAddr);
-//
-//                if (readBytes == 0)
-//                {
-//                    throw new NoSuchElementException("Api protocol violation: No next log entry available; You need to probe with hasNext() first.");
-//                }
-//
-//                if (readBytes < ioBuffer.limit())
-//                {
-//                    final int newOffset = ioBuffer.limit() - readBytes;
-//                    curr.wrap(buffer, newOffset);
-//                }
-//            }
-//            else
-//            {
             curr.wrap(buffer, nextFragmentOffset);
-//            }
-
-            return curr;
         }
+
+        return curr;
     }
 
     @Override
