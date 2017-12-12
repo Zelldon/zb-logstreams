@@ -34,12 +34,10 @@ import java.util.NoSuchElementException;
 import static io.zeebe.util.StringUtil.getBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- *
- */
 public class LogStreamReaderTest
 {
     private static final UnsafeBuffer EVENT_VALUE = new UnsafeBuffer(getBytes("test"));
+    private static final int WORK_COUNT = 100_000;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -138,15 +136,20 @@ public class LogStreamReaderTest
     }
 
     @Test
-    public void shouldReturnTrueOnHaveNextIfSeekIsCalledBefore()
+    public void shouldHaveNext()
     {
         // given
-        writeEvent(1, EVENT_VALUE);
+        final long position = writeEvent(1, EVENT_VALUE);
         reader.wrap(logStream);
 
         // when
         // then
         TestUtil.waitUntil(() -> reader.hasNext());
+
+        final LoggedEvent next = reader.next();
+        assertThat(next.getKey()).isEqualTo(1);
+        assertThat(next.getPosition()).isEqualTo(position);
+        assertThat(reader.hasNext()).isFalse();
     }
 
 
@@ -164,27 +167,6 @@ public class LogStreamReaderTest
         // then
         reader.next();
     }
-
-
-
-    @Test
-    public void shouldReturnLoggedEvent()
-    {
-        // given
-        final long position = writeEvent(0xFF, EVENT_VALUE);
-        reader.wrap(logStream);
-
-        // when
-        TestUtil.waitUntil(() -> reader.hasNext());
-
-        // then
-        final LoggedEvent loggedEvent = reader.next();
-        assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
-        assertThat(loggedEvent.getPosition()).isEqualTo(position);
-    }
-
-
-
 
     @Test
     public void shouldReturnPositionOfCurrentLoggedEvent()
@@ -215,7 +197,7 @@ public class LogStreamReaderTest
     {
         // given
         reader.close();
-        writeEvent(0xFF, EVENT_VALUE);
+        final long position = writeEvent(0xFF, EVENT_VALUE);
         reader.wrap(logStream);
 
         // when
@@ -224,6 +206,7 @@ public class LogStreamReaderTest
         // then
         final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        assertThat(loggedEvent.getPosition()).isEqualTo(position);
     }
 
     @Test
@@ -231,8 +214,9 @@ public class LogStreamReaderTest
     {
         // given
         final BufferedLogStreamReader reader = new BufferedLogStreamReader(true);
+
         logStream.setCommitPosition(Long.MIN_VALUE);
-        writeEvent(0xFF, EVENT_VALUE);
+        final long position = writeEvent(0xFF, EVENT_VALUE);
         reader.wrap(logStream);
 
         // when
@@ -241,6 +225,8 @@ public class LogStreamReaderTest
         // then
         final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        assertThat(loggedEvent.getPosition()).isEqualTo(position);
+
         reader.close();
     }
 
@@ -381,6 +367,27 @@ public class LogStreamReaderTest
         // then
         final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldSeekToLastBigLoggedEvents()
+    {
+        // given
+        final byte[] bytes = new byte[BufferedLogStreamReader.DEFAULT_INITIAL_BUFFER_CAPACITY * 2];
+        final long[] positions = writeEvents(1000, new UnsafeBuffer(bytes));
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> logStream.getCurrentAppenderPosition() > positions[999]);
+        reader.seekToLastEvent();
+
+        // then
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(999);
+        assertThat(loggedEvent.getPosition()).isEqualTo(positions[999]);
+
+        assertThat(reader.hasNext()).isFalse();
     }
 
     @Test
@@ -395,27 +402,6 @@ public class LogStreamReaderTest
         TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[999]);
 
         // then
-        reader.seekToFirstEvent();
-        for (int i = 0; i < 1000; i++)
-        {
-            final LoggedEvent loggedEvent = reader.next();
-            assertThat(loggedEvent.getKey()).isEqualTo(i);
-            assertThat(loggedEvent.getPosition()).isEqualTo(positions[i]);
-        }
-    }
-
-    @Test
-    public void shouldIterateOverManyEvents()
-    {
-        // given
-        final long[] positions = writeEvents(100_000, EVENT_VALUE);
-        reader.wrap(logStream);
-
-        // when
-        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[99_999]);
-
-        // then
-        reader.seekToFirstEvent();
         int idx = 0;
         while (reader.hasNext())
         {
@@ -424,7 +410,30 @@ public class LogStreamReaderTest
             assertThat(loggedEvent.getPosition()).isEqualTo(positions[idx]);
             idx++;
         }
-        assertThat(idx).isEqualTo(100_000);
+        assertThat(idx).isEqualTo(1000);
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldIterateOverManyEvents()
+    {
+        // given
+        final long[] positions = writeEvents(WORK_COUNT, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[WORK_COUNT - 1]);
+
+        // then
+        int idx = 0;
+        while (reader.hasNext())
+        {
+            final LoggedEvent loggedEvent = reader.next();
+            assertThat(loggedEvent.getKey()).isEqualTo(idx);
+            assertThat(loggedEvent.getPosition()).isEqualTo(positions[idx]);
+            idx++;
+        }
+        assertThat(idx).isEqualTo(WORK_COUNT);
     }
 
 }

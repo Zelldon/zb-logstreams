@@ -297,14 +297,8 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
     private int readBlockAt(long readAddress)
     {
         prepareIoBufferForNextRead();
-
         curr.wrap(buffer, 0);
 
-//        ensureRemainingBufferCapacity(minBytes);
-
-//        int bytesRead = 0;
-//        while (bytesRead < minBytes)
-//        {
         final int positionBeforeRead = ioBuffer.position();
         long opResult = OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
         while (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
@@ -317,6 +311,7 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
                 ensureRemainingBufferCapacity(ioBuffer.capacity() * 2);
             }
         }
+
         final int readBytes = ioBuffer.position() - positionBeforeRead;
         if (opResult >= 0)
         {
@@ -324,60 +319,12 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         }
         else
         {
+            iteratorState = IteratorState.ACTIVE;
             ioBuffer.limit(positionBeforeRead);
         }
-//            if (opResult >= 0)
-//            {
-//                bytesRead += ioBuffer.position() - available;
-//                available += bytesRead;
-//                nextReadAddr = opResult;
-//            }
-//            else
-//            {
-//                if (opResult != OP_RESULT_NO_DATA)
-//                {
-//                    Loggers.LOGSTREAMS_LOGGER.warn("Read on log storage fails with {} at address {}", opResult, nextReadAddr);
-//                }
-//                break;
-//            }
-//        }
-
         return readBytes;
-//        return bytesRead >= minBytes;
     }
 
-
-//    private boolean readMore(int minBytes)
-//    {
-//        prepareIoBufferForNextRead();
-//
-//        curr.wrap(buffer, 0);
-//
-//        ensureRemainingBufferCapacity(minBytes);
-//
-//        int bytesRead = 0;
-//        while (bytesRead < minBytes)
-//        {
-//            final long opResult = logStorage.read(ioBuffer, nextReadAddr, completeEventsInBlockProcessor);
-//
-//            if (opResult >= 0)
-//            {
-//                bytesRead += ioBuffer.position() - available;
-//                available += bytesRead;
-//                nextReadAddr = opResult;
-//            }
-//            else
-//            {
-//                if (opResult != OP_RESULT_NO_DATA)
-//                {
-//                    Loggers.LOGSTREAMS_LOGGER.warn("Read on log storage fails with {} at address {}", opResult, nextReadAddr);
-//                }
-//                break;
-//            }
-//        }
-//
-//        return bytesRead >= minBytes;
-//    }
 
     private void prepareIoBufferForNextRead()
     {
