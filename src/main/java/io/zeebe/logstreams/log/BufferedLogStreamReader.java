@@ -15,25 +15,29 @@
  */
 package io.zeebe.logstreams.log;
 
-import static io.zeebe.dispatcher.impl.log.DataFrameDescriptor.*;
-import static io.zeebe.logstreams.impl.LogEntryDescriptor.HEADER_BLOCK_LENGTH;
-import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
+import io.zeebe.logstreams.impl.CompleteEventsInBlockProcessor;
+import io.zeebe.logstreams.impl.LogEntryDescriptor;
+import io.zeebe.logstreams.impl.LoggedEventImpl;
+import io.zeebe.logstreams.impl.Loggers;
+import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
+import io.zeebe.logstreams.spi.LogStorage;
+import io.zeebe.util.CloseableSilently;
+import io.zeebe.util.allocation.AllocatedBuffer;
+import io.zeebe.util.allocation.BufferAllocator;
+import io.zeebe.util.allocation.DirectBufferAllocator;
+import org.agrona.DirectBuffer;
+import org.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-import io.zeebe.logstreams.impl.LogEntryDescriptor;
-import io.zeebe.logstreams.impl.LoggedEventImpl;
-import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
-import io.zeebe.logstreams.spi.LogStorage;
-import io.zeebe.util.CloseableSilently;
-import io.zeebe.util.allocation.*;
-import org.agrona.DirectBuffer;
-import org.agrona.concurrent.UnsafeBuffer;
+import static io.zeebe.dispatcher.impl.log.DataFrameDescriptor.HEADER_LENGTH;
+import static io.zeebe.logstreams.impl.LogEntryDescriptor.HEADER_BLOCK_LENGTH;
+import static io.zeebe.logstreams.spi.LogStorage.OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
 
 public class BufferedLogStreamReader implements LogStreamReader, CloseableSilently
 {
-    protected static final int DEFAULT_INITIAL_BUFFER_CAPACITY = 1024 * 32;
+    public static final int DEFAULT_INITIAL_BUFFER_CAPACITY = 1024 * 32;
 
     protected enum IteratorState
     {
@@ -173,7 +177,6 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
     protected void clear()
     {
         curr.wrap(buffer, -1);
-        available = 0;
         nextReadAddr = -1;
         iteratorState = IteratorState.UNINITIALIZED;
     }
@@ -184,7 +187,6 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         clear();
 
         final long commitPosition = getCommitPosition();
-
         if (commitPosition < 0)
         {
             // negative commit position -> nothing is committed
@@ -205,41 +207,35 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
             }
         }
 
-        if (nextReadAddr < 0)
+        // read
+        final int readBytes = readBlockAt(nextReadAddr);
+
+        if (readBytes == 0)
         {
-            clear();
             return false;
         }
 
-        // read at least header of initial fragment
-        if (!readMore(headerLength))
-        {
-            clear();
-            return false;
-        }
-
-        final int fragmentLength = curr.getFragmentLength();
-
-        // ensure fragment is fully read
-        if (available < fragmentLength)
-        {
-            if (!readMore(available - fragmentLength))
-            {
-                clear();
-                return false;
-            }
-        }
-
-        final long currPosition = curr.getPosition();
-
-        if (commitPosition < currPosition)
-        {
-            iteratorState = IteratorState.NOT_COMMITTED;
-            return false;
-        }
+//
+//        // read at least header of initial fragment
+//        if (!readMore(headerLength))
+//        {
+//            clear();
+//            return false;
+//        }
+//
+//        final int fragmentLength = curr.getFragmentLength();
+//
+//        // ensure fragment is fully read
+//        if (available < fragmentLength)
+//        {
+//            if (!readMore(available - fragmentLength))
+//            {
+//                clear();
+//                return false;
+//            }
+//        }
 
         iteratorState = IteratorState.INITIALIZED;
-
         do
         {
             final LoggedEvent entry = next();
@@ -295,53 +291,116 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         }
     }
 
-    protected boolean readMore(int minBytes)
-    {
-        final int initialPosition = curr.getFragmentOffset();
+    private CompleteEventsInBlockProcessor completeEventsInBlockProcessor = new CompleteEventsInBlockProcessor();
 
-        if (initialPosition >= 0)
-        {
-            // compact remaining data to the beginning of the buffer
-            ioBuffer.limit(available);
-            ioBuffer.position(initialPosition);
-            ioBuffer.compact();
-            available -= initialPosition;
-        }
-        else
-        {
-            ioBuffer.clear();
-        }
+
+    private int readBlockAt(long readAddress)
+    {
+        prepareIoBufferForNextRead();
 
         curr.wrap(buffer, 0);
 
-        ensureRemainingBufferCapacity(minBytes);
+//        ensureRemainingBufferCapacity(minBytes);
 
-        int bytesRead = 0;
-
-        while (bytesRead < minBytes)
+//        int bytesRead = 0;
+//        while (bytesRead < minBytes)
+//        {
+        final int positionBeforeRead = ioBuffer.position();
+        long opResult = OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY;
+        while (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
         {
-            final long opResult = logStorage.read(ioBuffer, nextReadAddr);
+            opResult = logStorage.read(ioBuffer, readAddress, completeEventsInBlockProcessor);
 
-            if (opResult >= 0)
-            {
-                bytesRead += ioBuffer.position() - available;
-                available += bytesRead;
-                nextReadAddr = opResult;
-            }
-            else if (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
+
+            if (opResult == OP_RESULT_INSUFFICIENT_BUFFER_CAPACITY)
             {
                 ensureRemainingBufferCapacity(ioBuffer.capacity() * 2);
             }
-            else
-            {
-                break;
-            }
         }
+        final int readBytes = ioBuffer.position() - positionBeforeRead;
+        if (opResult >= 0)
+        {
+            nextReadAddr = opResult;
+        }
+        else
+        {
+            ioBuffer.limit(positionBeforeRead);
+        }
+//            if (opResult >= 0)
+//            {
+//                bytesRead += ioBuffer.position() - available;
+//                available += bytesRead;
+//                nextReadAddr = opResult;
+//            }
+//            else
+//            {
+//                if (opResult != OP_RESULT_NO_DATA)
+//                {
+//                    Loggers.LOGSTREAMS_LOGGER.warn("Read on log storage fails with {} at address {}", opResult, nextReadAddr);
+//                }
+//                break;
+//            }
+//        }
 
-        return bytesRead >= minBytes;
+        return readBytes;
+//        return bytesRead >= minBytes;
     }
 
-    protected void ensureRemainingBufferCapacity(int requiredCapacity)
+
+//    private boolean readMore(int minBytes)
+//    {
+//        prepareIoBufferForNextRead();
+//
+//        curr.wrap(buffer, 0);
+//
+//        ensureRemainingBufferCapacity(minBytes);
+//
+//        int bytesRead = 0;
+//        while (bytesRead < minBytes)
+//        {
+//            final long opResult = logStorage.read(ioBuffer, nextReadAddr, completeEventsInBlockProcessor);
+//
+//            if (opResult >= 0)
+//            {
+//                bytesRead += ioBuffer.position() - available;
+//                available += bytesRead;
+//                nextReadAddr = opResult;
+//            }
+//            else
+//            {
+//                if (opResult != OP_RESULT_NO_DATA)
+//                {
+//                    Loggers.LOGSTREAMS_LOGGER.warn("Read on log storage fails with {} at address {}", opResult, nextReadAddr);
+//                }
+//                break;
+//            }
+//        }
+//
+//        return bytesRead >= minBytes;
+//    }
+
+    private void prepareIoBufferForNextRead()
+    {
+        final int initialPosition = curr.getFragmentOffset();
+
+        if (initialPosition > 0)
+        {
+            // compact remaining data to the beginning of the buffer
+            if (available < 0 || available > ioBuffer.capacity())
+            {
+                Loggers.LOGSTREAMS_LOGGER.warn("Available is wrong {}", available);
+            }
+            ioBuffer.position(initialPosition);
+            ioBuffer.compact();
+        }
+        else
+        {
+            iteratorState = IteratorState.INITIALIZED;
+            ioBuffer.clear();
+        }
+    }
+
+    private void ensureRemainingBufferCapacity(int requiredCapacity)
     {
         if (ioBuffer.remaining() < requiredCapacity)
         {
@@ -397,47 +456,58 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
 
         final int fragmentLength = curr.getFragmentLength();
         int nextFragmentOffset = curr.getFragmentOffset() + fragmentLength;
-        final int nextHeaderEnd = nextFragmentOffset + headerLength;
 
-        if (available < nextHeaderEnd)
+        if (ioBuffer.limit() <= nextFragmentOffset)
         {
-            // Attempt to read at least next header
-            if (readMore(nextHeaderEnd - available))
-            {
-                // reading more data moved offset of next fragment to the left
-                nextFragmentOffset = fragmentLength;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        final int nextFragmentLength = alignedLength(buffer.getInt(lengthOffset(nextFragmentOffset)));
-        final int nextFragmentEnd = nextFragmentOffset + nextFragmentLength;
-
-        if (available < nextFragmentEnd)
-        {
-            // Attempt to read remainder of fragment
-            if (!readMore(nextFragmentEnd - available))
+            final int readBytes = readBlockAt(nextReadAddr);
+            if (readBytes == 0)
             {
                 return false;
             }
             nextFragmentOffset = fragmentLength;
         }
+//
+//        final int nextHeaderEnd = nextFragmentOffset + headerLength;
+//
+//        if (available < nextHeaderEnd)
+//        {
+//            // Attempt to read at least next header
+//            if (readMore(nextHeaderEnd - available))
+//            {
+//                // reading more data moved offset of next fragment to the left
+//                nextFragmentOffset = fragmentLength;
+//            }
+//            else
+//            {
+//                return false;
+//            }
+//        }
+
+//        final int nextFragmentLength = alignedLength(buffer.getInt(lengthOffset(nextFragmentOffset)));
+//        final int nextFragmentEnd = nextFragmentOffset + nextFragmentLength;
+//
+//        if (available < nextFragmentEnd)
+//        {
+//            // Attempt to read remainder of fragment
+//            if (!readMore(nextFragmentEnd - available))
+//            {
+//                return false;
+//            }
+//            nextFragmentOffset = fragmentLength;
+//        }
 
         final long nextFragmentPosition = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
 
         return canReadPosition(nextFragmentPosition);
     }
 
-    protected boolean canReadPosition(long position)
+    private boolean canReadPosition(long position)
     {
         final long commitPosition = getCommitPosition();
         return commitPosition >= position;
     }
 
-    protected long getCommitPosition()
+    private long getCommitPosition()
     {
         long commitPosition = Long.MAX_VALUE;
 
@@ -449,7 +519,7 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
         return commitPosition;
     }
 
-    protected void ensureInitialized()
+    private void ensureInitialized()
     {
         if (iteratorState == IteratorState.UNINITIALIZED)
         {
@@ -475,7 +545,26 @@ public class BufferedLogStreamReader implements LogStreamReader, CloseableSilent
             final int offset = curr.getFragmentOffset();
             final int fragmentLength = curr.getFragmentLength();
 
-            curr.wrap(buffer, offset + fragmentLength);
+            final int nextFragmentOffset = offset + fragmentLength;
+//            if (nextFragmentOffset >= ioBuffer.limit())
+//            {
+//                final int readBytes = readBlockAt(nextReadAddr);
+//
+//                if (readBytes == 0)
+//                {
+//                    throw new NoSuchElementException("Api protocol violation: No next log entry available; You need to probe with hasNext() first.");
+//                }
+//
+//                if (readBytes < ioBuffer.limit())
+//                {
+//                    final int newOffset = ioBuffer.limit() - readBytes;
+//                    curr.wrap(buffer, newOffset);
+//                }
+//            }
+//            else
+//            {
+            curr.wrap(buffer, nextFragmentOffset);
+//            }
 
             return curr;
         }

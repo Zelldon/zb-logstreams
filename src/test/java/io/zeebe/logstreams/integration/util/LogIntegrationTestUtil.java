@@ -15,22 +15,23 @@
  */
 package io.zeebe.logstreams.integration.util;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.ByteBuffer;
-
 import io.zeebe.logstreams.log.*;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 
+import java.nio.ByteBuffer;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class LogIntegrationTestUtil
 {
 
-    public static void writeLogEvents(final LogStream log, final int workCount, int messageSize, final int offset)
+    public static long[] writeLogEvents(final LogStream log, final int workCount, int messageSize, final int offset)
     {
         final LogStreamWriter writer = new LogStreamWriterImpl(log);
 
         final UnsafeBuffer msg = new UnsafeBuffer(ByteBuffer.allocate(messageSize));
+        final long positions[] = new long[workCount];
 
         for (int i = 0; i < workCount; i++)
         {
@@ -40,11 +41,14 @@ public class LogIntegrationTestUtil
                 .key(offset + i)
                 .value(msg);
 
-            while (writer.tryWrite() < 0)
+            long position = 0;
+            while ((position = writer.tryWrite()) < 0)
             {
                 // spin
             }
+            positions[i] = position;
         }
+        return positions;
     }
 
     public static void waitUntilWrittenKey(final LogStream log, final int key)
@@ -88,27 +92,24 @@ public class LogIntegrationTestUtil
         long lastPosition = -1L;
         long lastKey = -1L;
 
-        while (count < workCount)
+        while (logReader.hasNext())
         {
-            if (logReader.hasNext())
-            {
-                final LoggedEvent entry = logReader.next();
-                final long currentPosition = entry.getPosition();
-                final long currentKey = entry.getKey();
+            final LoggedEvent entry = logReader.next();
+            final long currentPosition = entry.getPosition();
+            final long currentKey = entry.getKey();
 
-                assertThat(currentPosition > lastPosition);
-                assertThat(currentKey).isGreaterThan(lastKey);
+            assertThat(currentPosition > lastPosition);
+            assertThat(currentKey).isGreaterThan(lastKey);
 
-                final DirectBuffer valueBuffer = entry.getValueBuffer();
-                final long value = valueBuffer.getInt(entry.getValueOffset());
-                assertThat(value).isEqualTo(entry.getKey());
-                assertThat(entry.getValueLength()).isEqualTo(messageSize);
+            final DirectBuffer valueBuffer = entry.getValueBuffer();
+            final long value = valueBuffer.getInt(entry.getValueOffset());
+            assertThat(value).isEqualTo(entry.getKey());
+            assertThat(entry.getValueLength()).isEqualTo(messageSize);
 
-                lastPosition = currentPosition;
-                lastKey = currentKey;
+            lastPosition = currentPosition;
+            lastKey = currentKey;
 
-                count++;
-            }
+            count++;
         }
 
         assertThat(count).isEqualTo(workCount);

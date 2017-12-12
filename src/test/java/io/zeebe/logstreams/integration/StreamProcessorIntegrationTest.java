@@ -133,10 +133,11 @@ public class StreamProcessorIntegrationTest
             controller.closeAsync().get();
         }
 
-        sourceLogStream.close();
-        targetLogStream.close();
-
         actorScheduler.close();
+
+//        sourceLogStream.close();
+//        targetLogStream.close();
+
 
     }
 
@@ -162,7 +163,10 @@ public class StreamProcessorIntegrationTest
 
         streamProcessorController.openAsync().get();
 
-        writeLogEvents(sourceLogStream, WORK_COUNT, MSG_SIZE, 0);
+        final long[] positions = writeLogEvents(sourceLogStream, WORK_COUNT, MSG_SIZE, 0);
+
+//        waitUntil(() -> streamProcessorController.sourceLogStreamReader.getPosition() == positions[WORK_COUNT - 1]);
+        waitUntil(() -> targetLogStream.getLogStreamController().getCurrentAppenderPosition() > positions[WORK_COUNT - 1], WORK_COUNT);
 
         final LogStreamReader logReader = new BufferedLogStreamReader(targetLogStream, true);
         readLogAndAssertEvents(logReader, WORK_COUNT, MSG_SIZE);

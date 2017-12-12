@@ -165,6 +165,8 @@ public class LogStreamReaderTest
         reader.next();
     }
 
+
+
     @Test
     public void shouldReturnLoggedEvent()
     {
@@ -180,6 +182,9 @@ public class LogStreamReaderTest
         assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
         assertThat(loggedEvent.getPosition()).isEqualTo(position);
     }
+
+
+
 
     @Test
     public void shouldReturnPositionOfCurrentLoggedEvent()
@@ -225,7 +230,7 @@ public class LogStreamReaderTest
     public void shouldReturnUncommitedLoggedEvent()
     {
         // given
-        BufferedLogStreamReader reader = new BufferedLogStreamReader(true);
+        final BufferedLogStreamReader reader = new BufferedLogStreamReader(true);
         logStream.setCommitPosition(Long.MIN_VALUE);
         writeEvent(0xFF, EVENT_VALUE);
         reader.wrap(logStream);
@@ -245,11 +250,11 @@ public class LogStreamReaderTest
         // given
         final long firstPos = writeEvent(1, EVENT_VALUE);
         logStream.setCommitPosition(firstPos);
-        writeEvent(2, EVENT_VALUE);
+        final long secondPos = writeEvent(2, EVENT_VALUE);
         reader.wrap(logStream);
 
         // when
-        TestUtil.waitUntil(() -> reader.hasNext());
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > secondPos);
 
         // then
         final LoggedEvent loggedEvent = reader.next();
@@ -257,6 +262,68 @@ public class LogStreamReaderTest
         assertThat(loggedEvent.getPosition()).isEqualTo(firstPos);
 
         assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldNotReturnLoggedEventUntilCommited()
+    {
+        // given
+        final long position = writeEvent(0xFF, EVENT_VALUE);
+        logStream.setCommitPosition(Long.MIN_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > position);
+
+        // then
+        assertThat(reader.hasNext()).isFalse();
+
+        // when
+        logStream.setCommitPosition(position);
+
+        // then
+        assertThat(reader.hasNext()).isTrue();
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(0xFF);
+        assertThat(loggedEvent.getPosition()).isEqualTo(position);
+    }
+
+    @Test
+    public void shouldNotSeekToUncommitedLoggedEvent()
+    {
+        // given
+        final long firstPos = writeEvent(1, EVENT_VALUE);
+        logStream.setCommitPosition(firstPos);
+        final long secondPos = writeEvent(2, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+        reader.seek(secondPos);
+
+        // then
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldSeekToUncommitedLoggedEventIfFlagIsSet()
+    {
+        // given
+        final BufferedLogStreamReader reader = new BufferedLogStreamReader(true);
+        final long firstPos = writeEvent(1, EVENT_VALUE);
+        logStream.setCommitPosition(firstPos);
+        final long secondPos = writeEvent(2, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> reader.hasNext());
+        reader.seek(secondPos);
+
+        // then
+        assertThat(reader.hasNext()).isTrue();
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(2);
+        assertThat(loggedEvent.getPosition()).isEqualTo(secondPos);
     }
 
     @Test
@@ -275,6 +342,27 @@ public class LogStreamReaderTest
         final LoggedEvent loggedEvent = reader.next();
         assertThat(loggedEvent.getKey()).isEqualTo(2);
         assertThat(loggedEvent.getPosition()).isEqualTo(secondPos);
+
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void shouldReturnLastEventAfterSeekToLastEvent()
+    {
+        // given
+        final long positions[] = writeEvents(10, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[9]);
+
+        // when
+        reader.seekToLastEvent();
+
+        // then
+        assertThat(reader.hasNext()).isTrue();
+        final LoggedEvent loggedEvent = reader.next();
+        assertThat(loggedEvent.getKey()).isEqualTo(9);
+        assertThat(loggedEvent.getPosition()).isEqualTo(positions[9]);
 
         assertThat(reader.hasNext()).isFalse();
     }
@@ -304,7 +392,7 @@ public class LogStreamReaderTest
         reader.wrap(logStream);
 
         // when
-        TestUtil.waitUntil(() -> reader.hasNext());
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[999]);
 
         // then
         reader.seekToFirstEvent();
@@ -314,6 +402,29 @@ public class LogStreamReaderTest
             assertThat(loggedEvent.getKey()).isEqualTo(i);
             assertThat(loggedEvent.getPosition()).isEqualTo(positions[i]);
         }
+    }
+
+    @Test
+    public void shouldIterateOverManyEvents()
+    {
+        // given
+        final long[] positions = writeEvents(100_000, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[99_999]);
+
+        // then
+        reader.seekToFirstEvent();
+        int idx = 0;
+        while (reader.hasNext())
+        {
+            final LoggedEvent loggedEvent = reader.next();
+            assertThat(loggedEvent.getKey()).isEqualTo(idx);
+            assertThat(loggedEvent.getPosition()).isEqualTo(positions[idx]);
+            idx++;
+        }
+        assertThat(idx).isEqualTo(100_000);
     }
 
 }
