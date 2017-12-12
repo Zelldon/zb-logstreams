@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.zeebe.logstreams.snapshot.benchmarks;
+package io.zeebe.logstreams.reader.benchmarks;
 
 import io.zeebe.logstreams.LogStreams;
 import io.zeebe.logstreams.log.BufferedLogStreamReader;
@@ -30,16 +30,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static io.zeebe.logstreams.reader.benchmarks.Benchmarks.DATA_SET_SIZE;
+
 /**
  *
  */
 @State(Scope.Benchmark)
-public class FilledLogStreamSupplier
+public class FilledLogStreamAndOldReaderSupplier
 {
 
-    public static final int DATA_COUNT = 10_000;
     private LogStream logStream;
-    BufferedLogStreamReader reader;
+    OldBufferedLogStreamReader reader;
     ActorScheduler actorScheduler;
     LogStreamWriterImpl writer;
 
@@ -71,7 +72,7 @@ public class FilledLogStreamSupplier
     @Setup(Level.Iteration)
     public void fillStream() throws IOException
     {
-        reader = new BufferedLogStreamReader();
+        reader = new OldBufferedLogStreamReader();
 
         final Path tempDirectory = Files.createTempDirectory("reader-benchmark");
         actorScheduler = ActorSchedulerBuilder.createDefaultScheduler("test");
@@ -85,9 +86,9 @@ public class FilledLogStreamSupplier
         logStream.setCommitPosition(Long.MAX_VALUE);
 
         writer = new LogStreamWriterImpl(logStream);
-        final long[] positions = writeEvents(DATA_COUNT, new UnsafeBuffer("test".getBytes()));
+        final long[] positions = writeEvents(DATA_SET_SIZE, new UnsafeBuffer("test".getBytes()));
 
-        final long lastPosition = positions[DATA_COUNT - 1];
+        final long lastPosition = positions[DATA_SET_SIZE - 1];
         while (logStream.getCurrentAppenderPosition() < lastPosition)
         {
             // spin
@@ -96,7 +97,7 @@ public class FilledLogStreamSupplier
     }
 
     @TearDown(Level.Iteration)
-    public void closeMap()
+    public void closeStream()
     {
         reader.close();
         logStream.close();

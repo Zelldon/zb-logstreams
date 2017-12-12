@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.zeebe.logstreams.snapshot.benchmarks;
+package io.zeebe.logstreams.reader.benchmarks;
 
 import io.zeebe.logstreams.log.BufferedLogStreamReader;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -21,14 +21,35 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Threads;
 
-import static io.zeebe.logstreams.snapshot.benchmarks.FilledLogStreamSupplier.DATA_COUNT;
+import static io.zeebe.logstreams.reader.benchmarks.Benchmarks.DATA_SET_SIZE;
 
 @BenchmarkMode(Mode.Throughput)
 public class BufferedLogStreamReaderBenchmark
 {
     @Benchmark
     @Threads(1)
-    public long iterateWithOldReader(FilledLogStreamSupplier filledMapSnapshotSupplier) throws Exception
+    public long iterateWithOldReader(FilledLogStreamAndOldReaderSupplier filledMapSnapshotSupplier) throws Exception
+    {
+        OldBufferedLogStreamReader reader = filledMapSnapshotSupplier.reader;
+        reader.seekToFirstEvent();
+
+        long count = 0L;
+        while (reader.hasNext())
+        {
+            reader.next();
+            count++;
+        }
+        if (count != DATA_SET_SIZE)
+        {
+            throw new IllegalStateException("Iteration count " + count +" is not equal with data count " + DATA_SET_SIZE);
+        }
+        return count;
+    }
+
+
+    @Benchmark
+    @Threads(1)
+    public long iterateWithNewReader(FilledLogStreamAndReaderSupplier filledMapSnapshotSupplier) throws Exception
     {
         BufferedLogStreamReader reader = filledMapSnapshotSupplier.reader;
         reader.seekToFirstEvent();
@@ -39,9 +60,9 @@ public class BufferedLogStreamReaderBenchmark
             reader.next();
             count++;
         }
-        if (count != DATA_COUNT)
+        if (count != DATA_SET_SIZE)
         {
-            throw new IllegalStateException("Iteration count " + count +" is not equal with data count " + DATA_COUNT);
+            throw new IllegalStateException("Iteration count " + count +" is not equal with data count " + DATA_SET_SIZE);
         }
         return count;
     }
