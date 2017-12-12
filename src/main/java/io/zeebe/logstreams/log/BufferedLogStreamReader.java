@@ -41,8 +41,7 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
         UNINITIALIZED,
         INITIALIZED,
         INITIALIZED_EMPTY_LOG,
-        ACTIVE,
-        NOT_COMMITTED;
+        ACTIVE
     }
 
     private final LoggedEventImpl curr = new LoggedEventImpl();
@@ -340,76 +339,38 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
     {
         ensureInitialized();
 
+        boolean hasNext = false;
+
         if (iteratorState == IteratorState.INITIALIZED)
         {
-            return true;
+            hasNext = true;
         }
-
-        if (iteratorState == IteratorState.INITIALIZED_EMPTY_LOG)
+        else if (iteratorState == IteratorState.INITIALIZED_EMPTY_LOG)
         {
             seekToFirstEvent();
-            return iteratorState == IteratorState.INITIALIZED;
+            hasNext = iteratorState == IteratorState.INITIALIZED;
         }
-
-        if (iteratorState == IteratorState.NOT_COMMITTED)
+        else
         {
-            final long currentPosition = curr.getPosition();
-            if (canReadPosition(currentPosition))
+
+            final int fragmentLength = curr.getFragmentLength();
+            int nextFragmentOffset = curr.getFragmentOffset() + fragmentLength;
+
+            if (ioBuffer.limit() <= nextFragmentOffset)
             {
-                iteratorState = IteratorState.INITIALIZED;
-                return true;
+                final int readBytes = readBlockAt(nextReadAddr);
+                if (readBytes == 0)
+                {
+                    return false;
+                }
+                nextFragmentOffset = fragmentLength;
             }
-            else
-            {
-                return false;
-            }
+
+            final long nextFragmentPosition = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
+            hasNext = canReadPosition(nextFragmentPosition);
         }
 
-        final int fragmentLength = curr.getFragmentLength();
-        int nextFragmentOffset = curr.getFragmentOffset() + fragmentLength;
-
-        if (ioBuffer.limit() <= nextFragmentOffset)
-        {
-            final int readBytes = readBlockAt(nextReadAddr);
-            if (readBytes == 0)
-            {
-                return false;
-            }
-            nextFragmentOffset = fragmentLength;
-        }
-//
-//        final int nextHeaderEnd = nextFragmentOffset + headerLength;
-//
-//        if (available < nextHeaderEnd)
-//        {
-//            // Attempt to read at least next header
-//            if (readMore(nextHeaderEnd - available))
-//            {
-//                // reading more data moved offset of next fragment to the left
-//                nextFragmentOffset = fragmentLength;
-//            }
-//            else
-//            {
-//                return false;
-//            }
-//        }
-
-//        final int nextFragmentLength = alignedLength(buffer.getInt(lengthOffset(nextFragmentOffset)));
-//        final int nextFragmentEnd = nextFragmentOffset + nextFragmentLength;
-//
-//        if (available < nextFragmentEnd)
-//        {
-//            // Attempt to read remainder of fragment
-//            if (!readMore(nextFragmentEnd - available))
-//            {
-//                return false;
-//            }
-//            nextFragmentOffset = fragmentLength;
-//        }
-
-        final long nextFragmentPosition = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
-
-        return canReadPosition(nextFragmentPosition);
+        return hasNext;
     }
 
     private boolean canReadPosition(long position)
