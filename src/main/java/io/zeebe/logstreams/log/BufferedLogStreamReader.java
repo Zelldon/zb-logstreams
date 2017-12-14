@@ -18,6 +18,7 @@ package io.zeebe.logstreams.log;
 import io.zeebe.logstreams.impl.CompleteEventsInBlockProcessor;
 import io.zeebe.logstreams.impl.LogEntryDescriptor;
 import io.zeebe.logstreams.impl.LoggedEventImpl;
+import io.zeebe.logstreams.impl.Loggers;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
 import io.zeebe.logstreams.spi.LogStorage;
 import io.zeebe.util.CloseableSilently;
@@ -221,13 +222,12 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
             iteratorState = IteratorState.INITIALIZED;
             boolean reachSeekPosition = false;
             long entryPosition = Long.MIN_VALUE;
-            do
+            while (!reachSeekPosition && hasNext())
             {
                 final LoggedEvent entry = next();
                 entryPosition = entry.getPosition();
                 reachSeekPosition = entryPosition >= seekPosition;
             }
-            while (!reachSeekPosition && hasNext());
 
             foundPosition = entryPosition == seekPosition;
             iteratorState = reachSeekPosition ? IteratorState.INITIALIZED : IteratorState.ACTIVE;
@@ -344,7 +344,7 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
 
         if (iteratorState == IteratorState.INITIALIZED)
         {
-            hasNext = true;
+            hasNext = canReadPosition(curr.getPosition());
         }
         else if (iteratorState == IteratorState.INITIALIZED_EMPTY_LOG)
         {
@@ -407,6 +407,7 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
     {
         if (!hasNext())
         {
+            Loggers.LOGSTREAMS_LOGGER.error("Current position {} and commit position {}.", curr.getPosition(), getCommitPosition());
             throw new NoSuchElementException("Api protocol violation: No next log entry available; You need to probe with hasNext() first.");
         }
 

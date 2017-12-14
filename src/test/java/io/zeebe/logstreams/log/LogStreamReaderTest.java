@@ -248,6 +248,24 @@ public class LogStreamReaderTest
     }
 
     @Test
+    public void s()
+    {
+        // given
+        final long firstPos = writeEvent(1, EVENT_VALUE);
+        logStream.setCommitPosition(firstPos - 1);
+
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > firstPos);
+//        final long secondPos = writeEvent(2, EVENT_VALUE);
+        reader.wrap(logStream);
+
+        // when
+
+        // then
+        assertThat(reader.hasNext()).isFalse();
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
     public void shouldNotReturnUncommitedLoggedEvent()
     {
         // given

@@ -204,6 +204,7 @@ public final class LogStreamImpl implements LogStream
     @Override
     public void setCommitPosition(long commitPosition)
     {
+        Loggers.LOGSTREAMS_LOGGER.info("New commit position {}", commitPosition);
         this.commitPosition.setOrdered(commitPosition);
     }
 
