@@ -342,37 +342,46 @@ public final class BufferedLogStreamReader implements LogStreamReader, Closeable
 
         boolean hasNext = false;
 
+        long position = -1;
         if (iteratorState == IteratorState.INITIALIZED)
         {
-            hasNext = canReadPosition(curr.getPosition());
+            position = curr.getPosition();
         }
         else if (iteratorState == IteratorState.INITIALIZED_EMPTY_LOG)
         {
             seekToFirstEvent();
-            hasNext = iteratorState == IteratorState.INITIALIZED;
+
+            if (iteratorState == IteratorState.INITIALIZED)
+            {
+                position = curr.getPosition();
+            }
+
         }
         else
         {
             final int fragmentLength = curr.getFragmentLength();
-            int nextFragmentOffset = curr.getFragmentOffset() + fragmentLength;
+            final int nextFragmentOffset = curr.getFragmentOffset() + fragmentLength;
 
             if (ioBuffer.limit() <= nextFragmentOffset)
             {
                 final int readBytes = readBlockAt(nextReadAddr);
                 if (readBytes != 0)
                 {
-                    nextFragmentOffset = fragmentLength;
-                    final long nextFragmentPosition = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
-                    hasNext = canReadPosition(nextFragmentPosition);
+                    position = curr.getPosition();
                 }
             }
             else
             {
-                final long nextFragmentPosition = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
-                hasNext = canReadPosition(nextFragmentPosition);
+                position = LogEntryDescriptor.getPosition(buffer, nextFragmentOffset);
             }
         }
 
+
+        hasNext = position != -1 && canReadPosition(position);
+        if (hasNext)
+        {
+            Loggers.LOGSTREAMS_LOGGER.info("Has next is {} with pos {} and commit position {}", hasNext, position, getCommitPosition());
+        }
         return hasNext;
     }
 

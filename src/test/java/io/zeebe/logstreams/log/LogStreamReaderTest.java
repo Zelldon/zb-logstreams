@@ -21,6 +21,7 @@ import io.zeebe.util.actor.ActorScheduler;
 import io.zeebe.util.actor.ActorSchedulerBuilder;
 import io.zeebe.util.buffer.BufferUtil;
 import org.agrona.DirectBuffer;
+import org.agrona.ExpandableArrayBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.After;
 import org.junit.Before;
@@ -261,6 +262,26 @@ public class LogStreamReaderTest
         // when
 
         // then
+        assertThat(reader.hasNext()).isFalse();
+        assertThat(reader.hasNext()).isFalse();
+    }
+
+    @Test
+    public void test()
+    {
+        final ExpandableArrayBuffer buffer = new ExpandableArrayBuffer(16 * 1024);
+        final long[] positions = writeEvents(3, buffer);
+
+        TestUtil.waitUntil(() -> logStream.getLogStreamController().getCurrentAppenderPosition() > positions[2]);
+
+        reader.wrap(logStream);
+
+        logStream.setCommitPosition(positions[1]);
+
+        assertThat(reader.hasNext()).isTrue();
+        assertThat(reader.next().getPosition()).isEqualTo(positions[0]);
+        assertThat(reader.hasNext()).isTrue();
+        assertThat(reader.next().getPosition()).isEqualTo(positions[1]);
         assertThat(reader.hasNext()).isFalse();
         assertThat(reader.hasNext()).isFalse();
     }
