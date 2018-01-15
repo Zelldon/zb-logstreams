@@ -177,6 +177,7 @@ public class LogStreamController implements Actor
                 if (address >= 0)
                 {
                     blockPeek.markCompleted();
+                    LOG.debug("Block written with first event position: {}", context.getFirstEventPosition());
                 }
                 else
                 {
