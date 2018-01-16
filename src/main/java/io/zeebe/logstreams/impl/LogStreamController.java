@@ -166,6 +166,7 @@ public class LogStreamController implements Actor
 
             if (bytesAvailable > 0)
             {
+                LOG.info("Writing block for subscription position {}", writeBufferSubscription.getPosition());
                 final ByteBuffer nioBuffer = blockPeek.getRawBuffer();
                 final MutableDirectBuffer buffer = blockPeek.getBuffer();
 
@@ -177,7 +178,6 @@ public class LogStreamController implements Actor
                 if (address >= 0)
                 {
                     blockPeek.markCompleted();
-                    LOG.debug("Block written with first event position: {}", context.getFirstEventPosition());
                 }
                 else
                 {
